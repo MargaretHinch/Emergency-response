@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Emergency Response System</title>
     <style>
-        /* Basic styling for accessibility and usability */
+        /* Previous styles remain the same */
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             max-width: 800px;
@@ -51,6 +51,32 @@
             color: white;
         }
 
+        .address-correction {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            color: black;
+        }
+
+        .address-input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .confirm-button {
+            background: #007bff;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+
         .location-details {
             margin-top: 10px;
             font-size: 0.9em;
@@ -82,6 +108,8 @@
     <div id="offerStatus" class="status"></div>
 
     <script>
+        let currentCoords = null;
+
         async function getAddressFromCoordinates(latitude, longitude) {
             try {
                 const response = await fetch(
@@ -95,60 +123,97 @@
             }
         }
 
-        async function updateStatusWithLocation(position, statusElement, isHelpRequest) {
-            const { latitude, longitude } = position.coords;
-            const address = await getAddressFromCoordinates(latitude, longitude);
-            
-            let message = isHelpRequest ? 'Help requested at:' : 'Help offered from:';
-            
-            // Create location details section
+        function createAddressCorrectionForm(initialAddress, statusElement, isHelpRequest) {
+            const correctionDiv = document.createElement('div');
+            correctionDiv.className = 'address-correction';
+            correctionDiv.innerHTML = `
+                <p>Please verify or correct your address:</p>
+                <input type="text" class="address-input" value="${initialAddress}" 
+                    placeholder="Enter correct street address">
+                <button class="confirm-button">Confirm Address</button>
+            `;
+
+            const input = correctionDiv.querySelector('.address-input');
+            const button = correctionDiv.querySelector('.confirm-button');
+
+            button.addEventListener('click', () => {
+                const correctedAddress = input.value;
+                correctionDiv.remove();
+                displayFinalStatus(correctedAddress, statusElement, isHelpRequest);
+            });
+
+            return correctionDiv;
+        }
+
+        function displayFinalStatus(address, statusElement, isHelpRequest) {
             const locationDetails = document.createElement('div');
             locationDetails.className = 'location-details';
             
-            // Add user-friendly address
-            if (address) {
-                locationDetails.innerHTML = `
-                    <strong>${message}</strong><br>
-                    ${address}<br>
+            const message = isHelpRequest ? 'Help requested at:' : 'Help offered from:';
+            
+            locationDetails.innerHTML = `
+                <strong>${message}</strong><br>
+                ${address}<br>
+                ${currentCoords ? `
                     <div class="technical-details">
-                        Coordinates (for emergency services): ${latitude.toFixed(4)}, ${longitude.toFixed(4)}
+                        Coordinates (for emergency services): ${currentCoords.latitude.toFixed(4)}, ${currentCoords.longitude.toFixed(4)}
                     </div>
-                `;
-            } else {
-                locationDetails.innerHTML = `
-                    <strong>${message}</strong><br>
-                    <div class="technical-details">
-                        Coordinates: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}
-                    </div>
-                `;
-            }
+                ` : ''}
+            `;
 
-            // Clear previous content and add new details
+            // Update status message
             statusElement.textContent = isHelpRequest ? 
                 'Help request received! Emergency services would be notified in a live system.' :
                 'Thank you for offering to help! In a live system, you would be notified of nearby needs.';
+            
             statusElement.appendChild(locationDetails);
+        }
+
+        async function updateStatusWithLocation(position, statusElement, isHelpRequest) {
+            const { latitude, longitude } = position.coords;
+            currentCoords = { latitude, longitude };
+            
+            const approximateAddress = await getAddressFromCoordinates(latitude, longitude);
+            
+            // Create and add the address correction form
+            const correctionForm = createAddressCorrectionForm(
+                approximateAddress || "Address not found, please enter manually",
+                statusElement,
+                isHelpRequest
+            );
+            statusElement.appendChild(correctionForm);
         }
 
         document.getElementById('needHelp').addEventListener('click', async () => {
             const status = document.getElementById('helpStatus');
             status.style.display = 'block';
             status.className = 'status alert';
+            status.textContent = 'Getting your location...';
             
             try {
                 if (navigator.geolocation) {
-                    status.textContent = 'Getting your location...';
-                    
                     navigator.geolocation.getCurrentPosition(
                         async (position) => {
                             await updateStatusWithLocation(position, status, true);
                         },
                         (error) => {
-                            status.textContent = 'Location access denied. In a real system, you would still be able to request help without location.';
+                            const correctionForm = createAddressCorrectionForm(
+                                "",
+                                status,
+                                true
+                            );
+                            status.textContent = 'Please enter your address manually:';
+                            status.appendChild(correctionForm);
                         }
                     );
                 } else {
-                    status.textContent = 'Location services not available. In a real system, you would still be able to request help without location.';
+                    const correctionForm = createAddressCorrectionForm(
+                        "",
+                        status,
+                        true
+                    );
+                    status.textContent = 'Please enter your address manually:';
+                    status.appendChild(correctionForm);
                 }
             } catch (error) {
                 status.textContent = 'An error occurred. Please try again or call emergency services directly.';
@@ -159,21 +224,32 @@
             const status = document.getElementById('offerStatus');
             status.style.display = 'block';
             status.className = 'status success';
+            status.textContent = 'Getting your location...';
             
             try {
                 if (navigator.geolocation) {
-                    status.textContent = 'Getting your location...';
-                    
                     navigator.geolocation.getCurrentPosition(
                         async (position) => {
                             await updateStatusWithLocation(position, status, false);
                         },
                         (error) => {
-                            status.textContent = 'Location access denied. In a real system, you would still be able to register to help without location.';
+                            const correctionForm = createAddressCorrectionForm(
+                                "",
+                                status,
+                                false
+                            );
+                            status.textContent = 'Please enter your address manually:';
+                            status.appendChild(correctionForm);
                         }
                     );
                 } else {
-                    status.textContent = 'Location services not available. In a real system, you would still be able to register to help without location.';
+                    const correctionForm = createAddressCorrectionForm(
+                        "",
+                        status,
+                        false
+                    );
+                    status.textContent = 'Please enter your address manually:';
+                    status.appendChild(correctionForm);
                 }
             } catch (error) {
                 status.textContent = 'An error occurred. Please try again.';
