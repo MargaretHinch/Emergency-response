@@ -1,0 +1,133 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Response System</title>
+    <style>
+        /* Basic styling for accessibility and usability */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .emergency-button {
+            width: 100%;
+            padding: 20px;
+            font-size: 24px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .need-help {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .offer-help {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .alert {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .success {
+            background-color: #28a745;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>Emergency Response System</h1>
+    
+    <div id="locationStatus"></div>
+
+    <button id="needHelp" class="emergency-button need-help">
+        I Need Emergency Help
+    </button>
+
+    <button id="offerHelp" class="emergency-button offer-help">
+        I Can Offer Help
+    </button>
+
+    <div id="helpStatus" class="status"></div>
+
+    <div id="offerStatus" class="status"></div>
+
+    <script>
+        // Basic functionality
+        document.getElementById('needHelp').addEventListener('click', async () => {
+            const status = document.getElementById('helpStatus');
+            status.style.display = 'block';
+            status.className = 'status alert';
+            
+            try {
+                if (navigator.geolocation) {
+                    status.textContent = 'Getting your location...';
+                    
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const { latitude, longitude } = position.coords;
+                            status.textContent = `Help requested! Your location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}. Emergency services would be notified in a live system.`;
+                            
+                            // In a real system, this would send the alert to a server
+                            console.log('Emergency help requested at:', { latitude, longitude });
+                        },
+                        (error) => {
+                            status.textContent = 'Location access denied. In a real system, you would still be able to request help without location.';
+                        }
+                    );
+                } else {
+                    status.textContent = 'Location services not available. In a real system, you would still be able to request help without location.';
+                }
+            } catch (error) {
+                status.textContent = 'An error occurred. Please try again or call emergency services directly.';
+            }
+        });
+
+        document.getElementById('offerHelp').addEventListener('click', async () => {
+            const status = document.getElementById('offerStatus');
+            status.style.display = 'block';
+            status.className = 'status success';
+            
+            try {
+                if (navigator.geolocation) {
+                    status.textContent = 'Getting your location...';
+                    
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const { latitude, longitude } = position.coords;
+                            status.textContent = `Thank you for offering to help! Your location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}. In a live system, you would be notified of nearby needs.`;
+                            
+                            // In a real system, this would register the helper in a database
+                            console.log('Help offered at:', { latitude, longitude });
+                        },
+                        (error) => {
+                            status.textContent = 'Location access denied. In a real system, you would still be able to register to help without location.';
+                        }
+                    );
+                } else {
+                    status.textContent = 'Location services not available. In a real system, you would still be able to register to help without location.';
+                }
+            } catch (error) {
+                status.textContent = 'An error occurred. Please try again.';
+            }
+        });
+    </script>
+</body>
+</html>
