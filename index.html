@@ -229,35 +229,20 @@
             }
         };
 
-        // Simplified street definitions with center points
+        // Street definitions with verified points
         const streets = {
             'Eddleston': {
-                center: [34.291473, -118.538500],
+                points: [
+                    { number: 12047, coords: [34.291473, -118.538500] }  // Verified point
+                ],
                 suffix: 'Drive'
             },
-            'Beaufait': {
-                center: [34.290611, -118.538100],
-                suffix: 'Avenue'
-            },
-            'Laughton': {
-                center: [34.289050, -118.537500],
-                suffix: 'Way'
-            },
-            'Darby': {
-                center: [34.288400, -118.537200],
-                suffix: 'Avenue'
-            },
-            'Celtic': {
-                center: [34.289815, -118.538171],
-                suffix: 'Court'
-            },
             'Kirkcolm': {
-                center: [34.292950, -118.539833],
+                points: [
+                    { number: 18740, coords: [34.292210, -118.541805] },  // West point
+                    { number: 18643, coords: [34.293460, -118.539643] }   // East point
+                ],
                 suffix: 'Lane'
-            },
-            'Dunnicliffe': {
-                center: [34.287742, -118.537142],
-                suffix: 'Court'
             }
         };
 
@@ -292,11 +277,35 @@
             const street = streets[streetName];
             
             if (!street) return null;
-            return {
-                streetName,
-                houseNumber,
-                position: street.center
-            };
+
+            // For Eddleston, use the single known point
+            if (streetName === 'Eddleston') {
+                return {
+                    streetName,
+                    houseNumber,
+                    position: street.points[0].coords
+                };
+            }
+
+            // For Kirkcolm, interpolate between known points
+            if (streetName === 'Kirkcolm') {
+                const number = parseInt(houseNumber);
+                const point1 = street.points[0];  // 18740
+                const point2 = street.points[1];  // 18643
+                
+                // Calculate position along the street based on house number
+                const fraction = (number - point1.number) / (point2.number - point1.number);
+                const lat = point1.coords[0] + (point2.coords[0] - point1.coords[0]) * fraction;
+                const lng = point1.coords[1] + (point2.coords[1] - point1.coords[1]) * fraction;
+                
+                return {
+                    streetName,
+                    houseNumber,
+                    position: [lat, lng]
+                };
+            }
+
+            return null;
         }
 
         function addMarker(position, type, address) {
