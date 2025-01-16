@@ -56,9 +56,9 @@
             outline-offset: 2px;
         }
 
-        .need-help { background-color: #D55E00; }  /* Colorblind-friendly orange-red */
-        .offer-help { background-color: #009E73; }  /* Colorblind-friendly blue-green */
-        .safe { background-color: #0072B2; }        /* Colorblind-friendly blue */
+        .need-help { background-color: #D55E00; }
+        .offer-help { background-color: #009E73; }
+        .safe { background-color: #0072B2; }
 
         .modal {
             display: none;
@@ -163,7 +163,6 @@
         
         <div id="map"></div>
 
-        <!-- Address Modal -->
         <div id="addressModal" class="modal" role="dialog" aria-labelledby="modalTitle">
             <div class="modal-content">
                 <button class="close-button" onclick="closeModal()" aria-label="Close">&times;</button>
@@ -193,7 +192,6 @@
         let currentRequestType = null;
         let markers = [];
 
-        // Define boundary coordinates
         const boundaryCoords = [
             [34.292529, -118.542277],
             [34.293814, -118.539230],
@@ -215,7 +213,6 @@
             [34.292529, -118.542277]
         ];
 
-        // Status configurations
         const statusConfigs = {
             'need-help': {
                 color: '#D55E00',
@@ -234,17 +231,16 @@
             }
         };
 
-        // Street definitions with lines and house sides
         const streets = {
             'Eddleston': {
                 line: [
-                    [34.291473, -118.538956], // West end
-                    [34.291473, -118.538500], // Known point
-                    [34.291236, -118.536032]  // East end
+                    [34.291473, -118.538956],
+                    [34.291473, -118.538500],
+                    [34.291236, -118.536032]
                 ],
                 northSide: {
-                    odd: false,    // Whether odd numbers are on north side
-                    offset: 0.00007 // Offset from street line for markers
+                    odd: false,
+                    offset: 0.00012
                 },
                 points: [
                     { number: 12047, coords: [34.291473, -118.538500] }
@@ -253,12 +249,12 @@
             },
             'Kirkcolm': {
                 line: [
-                    [34.292210, -118.541805], // West end (18740)
-                    [34.293460, -118.539643]  // East end (18643)
+                    [34.292210, -118.541805],
+                    [34.293460, -118.539643]
                 ],
                 northSide: {
-                    odd: true,     // Odd numbers on north side
-                    offset: 0.00007 // Offset from street line for markers
+                    odd: true,
+                    offset: 0.00012
                 },
                 points: [
                     { number: 18740, coords: [34.292210, -118.541805] },
@@ -280,7 +276,6 @@
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
 
-            // Add boundary polygon
             const polygon = L.polygon(boundaryCoords, {
                 color: '#0072B2',
                 weight: 3,
@@ -289,14 +284,8 @@
                 interactive: false
             }).addTo(map);
 
-            // Draw street lines
-            Object.entries(streets).forEach(([name, street]) => {
-                L.polyline(street.line, {
-                    color: '#666',
-                    weight: 2,
-                    opacity: 0.8
-                }).addTo(map);
-            });
+            // Remove the street lines visualization
+            // They are only used for internal calculations now
 
             map.fitBounds(polygon.getBounds());
         }
@@ -312,23 +301,28 @@
             const number = parseInt(houseNumber);
             const isOddNumber = number % 2 === 1;
             
-            // Get the base position along the street line
             let basePosition;
             if (streetName === 'Eddleston') {
-                // For Eddleston, use the known point
-                basePosition = street.points[0].coords;
-            } else {
-                // For Kirkcolm, interpolate along the street line
-                const [point1, point2] = street.line;
-                const totalDist = Math.abs(street.points[0].number - street.points[1].number);
-                const fraction = Math.abs(number - street.points[0].number) / totalDist;
+                // Improved interpolation for Eddleston
+                const [start, mid, end] = street.line;
+                const totalLength = calculateDistance(start, end);
+                const knownPoint = street.points[0];
+                const distanceRatio = Math.abs(number - knownPoint.number) / 100;
                 
-                const lat = point1[0] + (point2[0] - point1[0]) * fraction;
-                const lng = point1[1] + (point2[1] - point1[1]) * fraction;
-                basePosition = [lat, lng];
+                basePosition = interpolatePosition(start, end, distanceRatio);
+            } else {
+                // Enhanced interpolation for Kirkcolm
+                const [point1, point2] = street.points;
+                const totalDist = Math.abs(point1.number - point2.number);
+                const fraction = Math.abs(number - point1.number) / totalDist;
+                
+                basePosition = [
+                    point1.coords[0] + (point2.coords[0] - point1.coords[0]) * fraction,
+                    point1.coords[1] + (point2.coords[1] - point1.coords[1]) * fraction
+                ];
             }
 
-            // Offset the marker to the correct side of the street
+            // Increased offset for better house overlay
             const shouldBeNorth = (isOddNumber === street.northSide.odd);
             const offset = shouldBeNorth ? street.northSide.offset : -street.northSide.offset;
             
@@ -337,6 +331,19 @@
                 houseNumber,
                 position: [basePosition[0] + offset, basePosition[1]]
             };
+        }
+
+        function calculateDistance(point1, point2) {
+            const lat1 = point1[0], lon1 = point1[1];
+            const lat2 = point2[0], lon2 = point2[1];
+            return Math.sqrt(Math.pow(lat2 - lat1, 2) + Math.pow(lon2 - lon1, 2));
+        }
+
+        function interpolatePosition(start, end, ratio) {
+            return [
+                start[0] + (end[0] - start[0]) * ratio,
+                start[1] + (end[1] - start[1]) * ratio
+            ];
         }
 
         function addMarker(position, type, address) {
@@ -419,7 +426,6 @@
             closeModal();
         }
 
-        // Event Listeners
         window.onload = initMap;
 
         window.onclick = function(event) {
