@@ -3,414 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neighborhood Emergency Response Map</title>
+    <title>Neighborhood Boundary Test</title>
     
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     
     <style>
         body { 
             margin: 0; 
             padding: 20px; 
-            font-family: system-ui, sans-serif;
-            color: #333;
+            font-family: system-ui, sans-serif; 
         }
         
         #map { 
-            height: 500px; 
+            height: 600px; 
             width: 100%; 
             border-radius: 8px; 
-            margin-top: 20px;
             border: 2px solid #ccc;
         }
 
-        .status-button {
-            width: 100%;
-            padding: 15px;
-            font-size: 18px;
-            margin: 10px 0;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            color: white;
-            font-weight: bold;
-            transition: opacity 0.2s;
-        }
-
-        .status-button:hover {
-            opacity: 0.9;
-        }
-
-        .status-button:focus {
-            outline: 3px solid #666;
-            outline-offset: 2px;
-        }
-
-        .need-help { background-color: #D55E00; } /* Colorblind-friendly orange-red */
-        .offer-help { background-color: #009E73; } /* Colorblind-friendly blue-green */
-        .safe { background-color: #0072B2; }       /* Colorblind-friendly blue */
-
-        .button-container {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        @media (min-width: 768px) {
-            .button-container {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
-
-        /* Modal Styles */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            z-index: 1000;
-        }
-
-        .modal-content {
-            position: relative;
-            background-color: white;
-            margin: 15% auto;
-            padding: 20px;
-            width: 90%;
-            max-width: 500px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .close-button {
-            position: absolute;
-            right: 10px;
-            top: 10px;
-            font-size: 24px;
-            cursor: pointer;
-            border: none;
-            background: none;
-            padding: 5px;
-        }
-
-        .close-button:hover {
-            color: #666;
-        }
-
-        .address-input {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            border: 2px solid #ccc;
-            border-radius: 4px;
-            font-size: 16px;
-            box-sizing: border-box;
-        }
-
-        .address-input:focus {
-            border-color: #0072B2;
-            outline: none;
-        }
-
-        .confirm-button {
-            background: #0072B2;
-            color: white;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-            float: right;
-        }
-
-        .confirm-button:hover {
-            background: #005999;
-        }
-
-        /* Alert box styles */
-        .alert {
-            background-color: #f8f9fa;
+        .info-box {
+            background: #f8f9fa;
             border: 1px solid #dee2e6;
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 20px;
         }
-
-        /* Accessibility improvements */
-        .sr-only {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            border: 0;
-        }
-
-        /* Map marker styles */
-        .custom-div-icon {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-        }
-
-        .marker-pulse {
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
     </style>
 </head>
 <body>
-    <div role="main">
-        <h1>Neighborhood Emergency Response Map</h1>
-        
-        <div class="alert" role="alert">
-            Select your status and verify your address to appear on the map.
-            This information will be visible to your neighbors.
-        </div>
-
-        <div class="button-container">
-            <button class="status-button need-help" onclick="requestHelp()" aria-label="Request help">
-                I Need Help
-            </button>
-            <button class="status-button offer-help" onclick="offerHelp()" aria-label="Offer help">
-                I Can Help
-            </button>
-            <button class="status-button safe" onclick="markSafe()" aria-label="Mark as safe">
-                I Am Safe
-            </button>
-        </div>
-        
-        <div id="map" role="region" aria-label="Emergency response map"></div>
-
-        <!-- Address Verification Modal -->
-        <div id="addressModal" class="modal" role="dialog" aria-labelledby="modalTitle">
-            <div class="modal-content">
-                <h2 id="modalTitle">Verify Your Address</h2>
-                <button class="close-button" onclick="closeModal()" aria-label="Close">&times;</button>
-                <input 
-                    type="text" 
-                    id="addressInput" 
-                    class="address-input" 
-                    placeholder="Enter house number and street (e.g., 12047 Eddleston)"
-                    aria-label="Address input"
-                >
-                <p id="addressHelp" class="text-muted">
-                    Please enter your complete street address
-                </p>
-                <button onclick="confirmAddress()" class="confirm-button">
-                    Confirm Address
-                </button>
-            </div>
-        </div>
+    <div class="info-box">
+        <h1>Neighborhood Boundary Test</h1>
+        <p>Blue polygon shows the neighborhood boundary. Markers indicate corner points and center.
+           Click markers to see labels.</p>
     </div>
+    
+    <div id="map"></div>
 
+    <!-- Leaflet JavaScript -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     
     <script>
-        // Initialize variables
-        let currentRequestType = null;
-        let map = null;
-        let markers = [];
-
-        // Street coordinates mapping
-        const streetCoordinates = {
-            'Eddleston': {
-                start: [34.2920, -118.5367],
-                end: [34.2925, -118.5370],
-                suffix: 'Drive'
-            },
-            'Beaufait': {
-                start: [34.2917, -118.5363],
-                end: [34.2922, -118.5366],
-                suffix: 'Avenue'
-            },
-            'Kirkcolm': {
-                start: [34.2932, -118.5363],
-                end: [34.2937, -118.5366],
-                suffix: 'Lane'
-            }
-        };
-
-        // Status configurations
-        const statusConfigs = {
-            'need-help': {
-                color: '#D55E00',
-                icon: '!',
-                label: 'Needs Help'
-            },
-            'offer-help': {
-                color: '#009E73',
-                icon: 'H',
-                label: 'Can Help'
-            },
-            'safe': {
-                color: '#0072B2',
-                icon: '✓',
-                label: 'Safe'
-            }
-        };
-
         // Initialize map
-        function initMap() {
-            map = L.map('map', {
-                center: [34.2932, -118.5363],
-                zoom: 17,
-                minZoom: 15,
-                maxZoom: 19
-            });
+        const map = L.map('map').setView([34.289940, -118.538210], 17);
 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(map);
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
 
-            // Add street labels
-            const streets = [
-                { name: "Kirkcolm Ln", pos: [34.2932, -118.5363] },
-                { name: "Beaufait Ave", pos: [34.2917, -118.5363] },
-                { name: "Eddleston Dr", pos: [34.2920, -118.5367] },
-                { name: "Laughton Way", pos: [34.2915, -118.5360] },
-                { name: "Darby Ave", pos: [34.2912, -118.5365] },
-                { name: "Dunnicliffe Ct", pos: [34.2908, -118.5360] }
-            ];
+        // Define boundary coordinates
+        const boundaryCoords = [
+            [34.289931, -118.536333], // Top left
+            [34.293530, -118.539069], // Top right
+            [34.286902, -118.536161], // Bottom right
+            [34.286981, -118.531923], // Bottom left
+            [34.289931, -118.536333]  // Back to start to close polygon
+        ];
 
-            streets.forEach(street => {
-                L.marker(street.pos, {
-                    icon: L.divIcon({
-                        className: 'street-label',
-                        html: `<div style="background: none; color: #333; font-weight: bold; font-size: 12px; text-shadow: 1px 1px white;">${street.name}</div>`,
-                        iconSize: [100, 20],
-                        iconAnchor: [50, 10]
-                    })
-                }).addTo(map);
-            });
-        }
+        // Add boundary polygon
+        const polygon = L.polygon(boundaryCoords, {
+            color: '#0072B2',     // Colorblind-friendly blue
+            weight: 3,
+            opacity: 0.8,
+            fillOpacity: 0.1
+        }).addTo(map);
 
-        // Calculate position based on address
-        function calculatePosition(address) {
-            const match = address.match(/^(\d+)\s+([A-Za-z]+)/);
-            if (!match) return null;
+        // Add markers at each corner with labels
+        const corners = [
+            { coords: [34.289931, -118.536333], label: 'Top Left' },
+            { coords: [34.293530, -118.539069], label: 'Top Right' },
+            { coords: [34.286902, -118.536161], label: 'Bottom Right' },
+            { coords: [34.286981, -118.531923], label: 'Bottom Left' }
+        ];
 
-            const [_, houseNumber, streetName] = match;
-            const street = streetCoordinates[streetName];
-            if (!street) return null;
-
-            const number = parseInt(houseNumber);
-            const fraction = (number - 12000) / 100; // Normalize to 0-1 range
-
-            // Interpolate between start and end coordinates
-            const lat = street.start[0] + (street.end[0] - street.start[0]) * fraction;
-            const lng = street.start[1] + (street.end[1] - street.start[1]) * fraction;
-
-            return [lat, lng];
-        }
-
-        function requestHelp() {
-            currentRequestType = 'need-help';
-            showModal();
-        }
-
-        function offerHelp() {
-            currentRequestType = 'offer-help';
-            showModal();
-        }
-
-        function markSafe() {
-            currentRequestType = 'safe';
-            showModal();
-        }
-
-        function showModal() {
-            const modal = document.getElementById('addressModal');
-            const input = document.getElementById('addressInput');
-            modal.style.display = 'block';
-            input.value = '';
-            input.focus();
-        }
-
-        function closeModal() {
-            document.getElementById('addressModal').style.display = 'none';
-        }
-
-        function addMarker(position, type, address) {
-            const config = statusConfigs[type];
-            
-            const icon = L.divIcon({
-                className: 'custom-div-icon',
-                html: `<div style="
-                    background-color: ${config.color};
-                    width: 50px;
-                    height: 50px;
-                    border-radius: 50%;
-                    border: 4px solid white;
-                    box-shadow: 0 3px 14px rgba(0,0,0,0.4);
-                    color: white;
-                    font-size: 24px;
-                    font-weight: bold;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    ">${config.icon}</div>`,
-                iconSize: [50, 50],
-                iconAnchor: [25, 25]
-            });
-            
-            const marker = L.marker(position, { icon }).addTo(map);
-            
-            const popupContent = `
-                <b>${config.label}</b><br>
-                ${address}<br>
-                <small>Coordinates: ${position[0].toFixed(6)}, ${position[1].toFixed(6)}</small>
-            `;
-            
-            marker.bindPopup(popupContent).openPopup();
-            markers.push(marker);
-        }
-
-        function confirmAddress() {
-            const address = document.getElementById('addressInput').value;
-            if (!address) {
-                alert('Please enter your address');
-                return;
-            }
-
-            const position = calculatePosition(address);
-            if (!position) {
-                alert('Invalid address format or street name');
-                return;
-            }
-
-            addMarker(position, currentRequestType, address);
-            closeModal();
-        }
-
-        // Initialize map when page loads
-        window.onload = initMap;
-
-        // Close modal if clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('addressModal');
-            if (event.target == modal) {
-                closeModal();
-            }
-        }
-
-        // Handle Enter key in address input
-        document.getElementById('addressInput').addEventListener('keyup', function(event) {
-            if (event.key === 'Enter') {
-                confirmAddress();
-            }
+        corners.forEach(corner => {
+            L.marker(corner.coords)
+                .bindPopup(corner.label)
+                .addTo(map);
         });
+
+        // Add center point marker
+        const centerMarker = L.marker([34.289940, -118.538210])
+            .bindPopup('Center Point')
+            .addTo(map);
+
+        // Make center marker orange to stand out
+        centerMarker._icon.style.filter = 'hue-rotate(30deg)';
+
+        // Fit map to boundary
+        map.fitBounds(polygon.getBounds());
     </script>
 </body>
 </html>
