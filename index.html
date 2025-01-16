@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detailed Neighborhood Boundary Test</title>
+    <title>Neighborhood Emergency Response Map</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     
@@ -15,45 +15,185 @@
         }
         
         #map { 
-            height: 700px; 
+            height: 600px; 
             width: 100%; 
             border-radius: 8px; 
             border: 2px solid #ccc;
+            margin-top: 20px;
         }
 
-        .info-box {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 15px;
+        .button-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
             margin-bottom: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .button-container {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        .status-button {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: white;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        .status-button:hover {
+            opacity: 0.9;
+        }
+
+        .status-button:focus {
+            outline: 3px solid #666;
+            outline-offset: 2px;
+        }
+
+        .need-help { background-color: #D55E00; }  /* Colorblind-friendly orange-red */
+        .offer-help { background-color: #009E73; }  /* Colorblind-friendly blue-green */
+        .safe { background-color: #0072B2; }        /* Colorblind-friendly blue */
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: relative;
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .address-input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        .address-input:focus {
+            border-color: #0072B2;
+            outline: none;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .modal-button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .cancel-button {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+
+        .confirm-button {
+            background-color: #0072B2;
+            color: white;
+        }
+
+        .help-text {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .close-button {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            font-size: 24px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            padding: 5px;
         }
     </style>
 </head>
 <body>
-    <div class="info-box">
+    <div role="main">
         <h1>Neighborhood Emergency Response Map</h1>
-        <p>Blue boundary line shows the neighborhood area.</p>
+
+        <div class="button-container">
+            <button class="status-button need-help" onclick="requestHelp()" aria-label="I need help">
+                I Need Help
+            </button>
+            <button class="status-button offer-help" onclick="offerHelp()" aria-label="I can offer help">
+                I Can Help
+            </button>
+            <button class="status-button safe" onclick="markSafe()" aria-label="I am safe">
+                I Am Safe
+            </button>
+        </div>
+        
+        <div id="map"></div>
+
+        <!-- Address Modal -->
+        <div id="addressModal" class="modal" role="dialog" aria-labelledby="modalTitle">
+            <div class="modal-content">
+                <button class="close-button" onclick="closeModal()" aria-label="Close">&times;</button>
+                <h2 id="modalTitle">Verify Your Address</h2>
+                <input 
+                    type="text" 
+                    id="addressInput" 
+                    class="address-input" 
+                    placeholder="Enter house number and street (e.g., 12047 Eddleston)"
+                    aria-label="Address input"
+                >
+                <p class="help-text">
+                    Please enter your complete street address to ensure accurate location placement
+                </p>
+                <div class="modal-buttons">
+                    <button class="modal-button cancel-button" onclick="closeModal()">Cancel</button>
+                    <button class="modal-button confirm-button" onclick="confirmAddress()">Confirm</button>
+                </div>
+            </div>
+        </div>
     </div>
-    
-    <div id="map"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     
     <script>
-        // Initialize map
-        const map = L.map('map').setView([34.290000, -118.537000], 16);
+        // Initialize variables
+        let map = null;
+        let currentRequestType = null;
+        let markers = [];
 
-        // Add OpenStreetMap tiles
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-
-        // Define boundary coordinates in sequence
+        // Define boundary coordinates
         const boundaryCoords = [
-            [34.292529, -118.542277], // Top left
-            [34.293814, -118.539230], // Second point
+            [34.292529, -118.542277],
+            [34.293814, -118.539230],
             [34.291731, -118.536118],
             [34.291350, -118.536472],
             [34.290677, -118.535936],
@@ -69,19 +209,174 @@
             [34.285936, -118.534648],
             [34.287345, -118.538522],
             [34.289250, -118.540539],
-            [34.292529, -118.542277]  // Back to start
+            [34.292529, -118.542277]
         ];
 
-        // Add boundary polygon
-        const polygon = L.polygon(boundaryCoords, {
-            color: '#0072B2',     // Colorblind-friendly blue
-            weight: 3,
-            opacity: 0.8,
-            fillOpacity: 0.1
-        }).addTo(map);
+        // Status configurations
+        const statusConfigs = {
+            'need-help': {
+                color: '#D55E00',
+                icon: '!',
+                label: 'Needs Help'
+            },
+            'offer-help': {
+                color: '#009E73',
+                icon: 'H',
+                label: 'Can Help'
+            },
+            'safe': {
+                color: '#0072B2',
+                icon: '✓',
+                label: 'Safe'
+            }
+        };
 
-        // Fit map to boundary
-        map.fitBounds(polygon.getBounds());
+        // Street coordinates for address validation
+        const streetCoordinates = {
+            'Eddleston': {
+                start: [34.291731, -118.536118],
+                end: [34.290677, -118.535936],
+                suffix: 'Drive'
+            },
+            // Add other streets with their coordinates...
+        };
+
+        // Initialize map
+        function initMap() {
+            map = L.map('map', {
+                center: [34.290000, -118.537000],
+                zoom: 16,
+                zoomControl: true
+            });
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Add boundary polygon
+            const polygon = L.polygon(boundaryCoords, {
+                color: '#0072B2',
+                weight: 3,
+                opacity: 0.8,
+                fillOpacity: 0.1,
+                interactive: false
+            }).addTo(map);
+
+            map.fitBounds(polygon.getBounds());
+        }
+
+        function calculatePosition(address) {
+            const match = address.match(/^(\d+)\s+([A-Za-z]+)/);
+            if (!match) return null;
+
+            const [_, houseNumber, streetName] = match;
+            const street = streetCoordinates[streetName];
+            if (!street) return null;
+
+            const number = parseInt(houseNumber);
+            const fraction = (number - 12000) / 100;
+
+            const lat = street.start[0] + (street.end[0] - street.start[0]) * fraction;
+            const lng = street.start[1] + (street.end[1] - street.start[1]) * fraction;
+
+            return [lat, lng];
+        }
+
+        function addMarker(position, type, address) {
+            const config = statusConfigs[type];
+            
+            const icon = L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style="
+                    background-color: ${config.color};
+                    width: 50px;
+                    height: 50px;
+                    border-radius: 50%;
+                    border: 4px solid white;
+                    box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+                    color: white;
+                    font-size: 24px;
+                    font-weight: bold;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    ">${config.icon}</div>`,
+                iconSize: [50, 50],
+                iconAnchor: [25, 25]
+            });
+            
+            const marker = L.marker(position, { icon }).addTo(map);
+            
+            const popupContent = `
+                <b>${config.label}</b><br>
+                ${address}<br>
+                <small>Coordinates: ${position[0].toFixed(6)}, ${position[1].toFixed(6)}</small>
+            `;
+            
+            marker.bindPopup(popupContent).openPopup();
+            markers.push(marker);
+        }
+
+        function requestHelp() {
+            currentRequestType = 'need-help';
+            showModal();
+        }
+
+        function offerHelp() {
+            currentRequestType = 'offer-help';
+            showModal();
+        }
+
+        function markSafe() {
+            currentRequestType = 'safe';
+            showModal();
+        }
+
+        function showModal() {
+            const modal = document.getElementById('addressModal');
+            const input = document.getElementById('addressInput');
+            modal.style.display = 'block';
+            input.value = '';
+            input.focus();
+        }
+
+        function closeModal() {
+            document.getElementById('addressModal').style.display = 'none';
+        }
+
+        function confirmAddress() {
+            const address = document.getElementById('addressInput').value;
+            if (!address) {
+                alert('Please enter your address');
+                return;
+            }
+
+            const position = calculatePosition(address);
+            if (!position) {
+                alert('Please enter a valid address format (e.g., 12047 Eddleston)');
+                return;
+            }
+
+            addMarker(position, currentRequestType, address);
+            closeModal();
+        }
+
+        // Event Listeners
+        window.onload = initMap;
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('addressModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        };
+
+        document.getElementById('addressInput').addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                confirmAddress();
+            }
+        });
     </script>
 </body>
 </html>
