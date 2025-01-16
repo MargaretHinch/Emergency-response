@@ -218,78 +218,69 @@
             getLocation();
         }
 
-        async function getAddressFromCoordinates(latitude, longitude) {
-            try {
-                const response = await fetch(
-                    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
-                );
-                const data = await response.json();
-                
-                // Extract address components
-                const house_number = data.address.house_number || '';
-                const road = data.address.road || '';
-                const neighborhood = data.address.neighbourhood || '';
-                
-                // Format address to match local convention
-                let formattedAddress = '';
-                if (house_number && road) {
-                    formattedAddress = `${house_number} ${road}`;
-                } else {
-                    formattedAddress = `Address on ${road}`;
-                }
-                
-                formattedAddress += ', Porter Ranch, CA';
-                return formattedAddress;
-            } catch (error) {
-                console.error('Error getting address:', error);
-                return "Please enter the complete street address";
+        // Define valid street ranges for the neighborhood
+        const streetRanges = {
+            'Eddleston': {
+                min: 12000,
+                max: 12099,
+                suffix: 'Drive'
+            },
+            'Beaufait': {
+                min: 12000,
+                max: 12099,
+                suffix: 'Avenue'
+            },
+            'Kirkcolm': {
+                min: 12000,
+                max: 12099,
+                suffix: 'Lane'
+            },
+            'Laughton': {
+                min: 12000,
+                max: 12099,
+                suffix: 'Way'
+            },
+            'Darby': {
+                min: 12000,
+                max: 12099,
+                suffix: 'Avenue'
+            },
+            'Dunnicliffe': {
+                min: 12000,
+                max: 12099,
+                suffix: 'Court'
             }
+        };
+
+        function validateAddress(address) {
+            // Extract house number and street name
+            const match = address.match(/^(\d+)\s+([A-Za-z]+)/);
+            if (!match) return false;
+
+            const [_, houseNumber, streetName] = match;
+            const number = parseInt(houseNumber);
+
+            // Check if street exists and number is in valid range
+            const street = streetRanges[streetName];
+            if (!street) return false;
+
+            return number >= street.min && number <= street.max;
+        }
+
+        function formatAddress(address) {
+            const match = address.match(/^(\d+)\s+([A-Za-z]+)/);
+            if (!match) return address;
+
+            const [_, houseNumber, streetName] = match;
+            const street = streetRanges[streetName];
+            if (!street) return address;
+
+            return `${houseNumber} ${streetName} ${street.suffix}, Porter Ranch, CA`;
         }
 
         function getLocation() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    // Success callback
-                    async (position) => {
-                        const { latitude, longitude } = position.coords;
-                        currentPosition = [latitude, longitude];
-                        try {
-                            const address = await getAddressFromCoordinates(latitude, longitude);
-                            showModal(address);
-                        } catch (error) {
-                            showModal();
-                        }
-                    },
-                    // Error callback
-                    (error) => {
-                        let errorMessage = "Location access was denied. Please enter your address manually.";
-                        switch(error.code) {
-                            case error.PERMISSION_DENIED:
-                                errorMessage = "Please allow location access or enter your address manually.";
-                                break;
-                            case error.POSITION_UNAVAILABLE:
-                                errorMessage = "Location information unavailable. Please enter your address manually.";
-                                break;
-                            case error.TIMEOUT:
-                                errorMessage = "Location request timed out. Please enter your address manually.";
-                                break;
-                        }
-                        alert(errorMessage);
-                        showModal();
-                        currentPosition = [34.2932, -118.5363]; // Default to neighborhood center
-                    },
-                    // Options
-                    {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 0
-                    }
-                );
-            } else {
-                alert("Geolocation is not supported by your browser. Please enter your address manually.");
-                showModal();
-                currentPosition = [34.2932, -118.5363]; // Default to neighborhood center
-            }
+            showModal();
+            currentPosition = [34.2932, -118.5363]; // Default to neighborhood center
         }
 
         function addMarker(position, type, address) {
@@ -330,15 +321,25 @@
 
         async function confirmAddress() {
             const address = document.getElementById('addressInput').value;
-            if (address && currentPosition) {
+            if (!address) {
+                alert("Please enter your address");
+                return;
+            }
+
+            // Validate address format and range
+            if (!validateAddress(address)) {
+                alert("Please enter a valid address in the format '12047 Eddleston' with a valid house number");
+                return;
+            }
+
+            const formattedAddress = formatAddress(address);
+            if (currentPosition) {
                 try {
-                    addMarker(currentPosition, currentRequestType, address);
+                    addMarker(currentPosition, currentRequestType, formattedAddress);
                     closeModal();
                 } catch (error) {
                     alert("There was an error placing your marker. Please try again.");
                 }
-            } else if (!address) {
-                alert("Please enter your address");
             } else {
                 alert("There was an error with your location. Please try again.");
             }
