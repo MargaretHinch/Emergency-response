@@ -39,8 +39,8 @@
     <script>
         // Initialize the map
         try {
-            // Define the target area (Porter Ranch near Sesnon and Reseda)
-            const center = [34.2838, -118.5564];
+            // Define the target area (Porter Ranch - Kirkcolm/Reseda area)
+            const center = [34.2932, -118.5363];
             
             // Create the map instance
             const map = L.map('map', {
@@ -58,16 +58,16 @@
 
             // Define the neighborhood boundary
             const neighborhoodBoundary = [
-                [34.2838, -118.5564], // Kirkcolm/Reseda
-                [34.2834, -118.5545], // Beaufait
-                [34.2825, -118.5539], // Beaufait curve
-                [34.2815, -118.5537], // Beaufait cont
-                [34.2808, -118.5542], // Dunnicliffe turn
-                [34.2802, -118.5557], // Dunnicliffe Court
-                [34.2805, -118.5562], // Darby
-                [34.2815, -118.5565], // Eddleston
-                [34.2825, -118.5567], // North
-                [34.2838, -118.5564]  // Close polygon
+                [34.2932, -118.5363], // Kirkcolm/Reseda
+                [34.2930, -118.5355], // Along Kirkcolm
+                [34.2917, -118.5363], // Beaufait/Reseda
+                [34.2915, -118.5355], // Along Beaufait
+                [34.2910, -118.5357], // Turn towards Dunnicliffe
+                [34.2908, -118.5360], // Dunnicliffe Court
+                [34.2912, -118.5365], // Up Darby
+                [34.2920, -118.5367], // Along Eddleston
+                [34.2925, -118.5365], // North
+                [34.2932, -118.5363]  // Close polygon
             ];
 
             // Add the boundary polygon
@@ -80,13 +80,13 @@
 
             // Add street labels
             const streets = [
-                { name: "Kirkcolm Ln", pos: [34.2838, -118.5564] },
-                { name: "Beaufait Ave", pos: [34.2825, -118.5539] },
-                { name: "Eddleston Dr", pos: [34.2815, -118.5565] },
-                { name: "Laughton Way", pos: [34.2810, -118.5550] },
-                { name: "Darby Ave", pos: [34.2805, -118.5562] },
-                { name: "Dunnicliffe Ct", pos: [34.2802, -118.5557] },
-                { name: "Reseda Blvd", pos: [34.2820, -118.5568] }
+                { name: "Kirkcolm Ln", pos: [34.2932, -118.5363] },
+                { name: "Beaufait Ave", pos: [34.2917, -118.5363] },
+                { name: "Eddleston Dr", pos: [34.2920, -118.5367] },
+                { name: "Laughton Way", pos: [34.2915, -118.5360] },
+                { name: "Darby Ave", pos: [34.2912, -118.5365] },
+                { name: "Dunnicliffe Ct", pos: [34.2908, -118.5360] },
+                { name: "Reseda Blvd", pos: [34.2925, -118.5363] }
             ];
 
             streets.forEach(street => {
