@@ -87,25 +87,32 @@
 
         /* Help Markers */
         .custom-div-icon {
-            width: 50px !important;
-            height: 50px !important;
-            font-size: 24px;
-            font-weight: bold;
             display: flex !important;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            border: 4px solid white;
-            box-shadow: 0 3px 14px rgba(0,0,0,0.4);
-            color: white;
+            align-items: center !important;
+            justify-content: center !important;
         }
 
-        .help-needed {
-            background-color: rgb(255, 0, 0);
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 10000;
         }
 
-        .help-offered {
-            background-color: rgb(0, 255, 0);
+        .modal-content {
+            position: relative;
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
     </style>
 </head>
@@ -149,7 +156,7 @@
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Add street labels
+        // Add street labels with adjusted style
         const streets = [
             { name: "Kirkcolm Ln", pos: [34.2932, -118.5363] },
             { name: "Beaufait Ave", pos: [34.2917, -118.5363] },
@@ -161,10 +168,12 @@
         ];
 
         streets.forEach(street => {
-            L.marker(street.pos, {
+            const label = L.marker(street.pos, {
                 icon: L.divIcon({
-                    className: 'neighborhood-label',
-                    html: street.name
+                    className: 'street-label',
+                    html: `<div style="background: none; color: #333; font-weight: bold; font-size: 12px; text-shadow: 1px 1px white;">${street.name}</div>`,
+                    iconSize: [100, 20],
+                    iconAnchor: [50, 10]
                 })
             }).addTo(map);
         });
@@ -205,34 +214,79 @@
 
         function getLocation() {
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(async (position) => {
-                    const { latitude, longitude } = position.coords;
-                    currentPosition = [latitude, longitude];
-                    const address = await getAddressFromCoordinates(latitude, longitude);
-                    showModal(address);
-                }, (error) => {
-                    showModal();
-                });
+                navigator.geolocation.getCurrentPosition(
+                    // Success callback
+                    async (position) => {
+                        const { latitude, longitude } = position.coords;
+                        currentPosition = [latitude, longitude];
+                        try {
+                            const address = await getAddressFromCoordinates(latitude, longitude);
+                            showModal(address);
+                        } catch (error) {
+                            showModal();
+                        }
+                    },
+                    // Error callback
+                    (error) => {
+                        let errorMessage = "Location access was denied. Please enter your address manually.";
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage = "Please allow location access or enter your address manually.";
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage = "Location information unavailable. Please enter your address manually.";
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage = "Location request timed out. Please enter your address manually.";
+                                break;
+                        }
+                        alert(errorMessage);
+                        showModal();
+                        currentPosition = [34.2932, -118.5363]; // Default to neighborhood center
+                    },
+                    // Options
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
             } else {
+                alert("Geolocation is not supported by your browser. Please enter your address manually.");
                 showModal();
+                currentPosition = [34.2932, -118.5363]; // Default to neighborhood center
             }
         }
 
         function addMarker(position, type, address) {
-            const markerText = type === "help-needed" ? "!" : "H";
-            const className = `custom-div-icon ${type}`;
+            const isNeedHelp = type === "help-needed";
+            const markerText = isNeedHelp ? "!" : "H";
+            const markerColor = isNeedHelp ? "#ff0000" : "#00ff00";
             
-            const marker = L.marker(position, {
-                icon: L.divIcon({
-                    className: className,
-                    html: markerText,
-                    iconSize: [50, 50],
-                    iconAnchor: [25, 25]
-                })
-            }).addTo(map);
+            const icon = L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style="
+                    background-color: ${markerColor};
+                    width: 50px;
+                    height: 50px;
+                    border-radius: 50%;
+                    border: 4px solid white;
+                    box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+                    color: white;
+                    font-size: 24px;
+                    font-weight: bold;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    ">${markerText}</div>`,
+                iconSize: [50, 50],
+                iconAnchor: [25, 25]
+            });
+            
+            const marker = L.marker(position, { icon }).addTo(map);
 
             const popupContent = `
-                <b>${type === "help-needed" ? "Needs Help" : "Can Help"}</b><br>
+                <b>${isNeedHelp ? "Needs Help" : "Can Help"}</b><br>
                 ${address}<br>
                 <small>Coordinates: ${position[0].toFixed(6)}, ${position[1].toFixed(6)}</small>
             `;
@@ -242,11 +296,17 @@
 
         async function confirmAddress() {
             const address = document.getElementById('addressInput').value;
-            if (address) {
-                addMarker(currentPosition, currentRequestType, address);
-                closeModal();
+            if (address && currentPosition) {
+                try {
+                    addMarker(currentPosition, currentRequestType, address);
+                    closeModal();
+                } catch (error) {
+                    alert("There was an error placing your marker. Please try again.");
+                }
+            } else if (!address) {
+                alert("Please enter your address");
             } else {
-                alert("Please enter an address");
+                alert("There was an error with your location. Please try again.");
             }
         }
 
