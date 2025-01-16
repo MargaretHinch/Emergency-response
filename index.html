@@ -71,18 +71,21 @@
                 subdomains: 'abcd'
             }).addTo(map);
 
-            // Define the neighborhood boundary
+            // Define the neighborhood boundary following actual streets
             const neighborhoodBoundary = [
-                [34.2932, -118.5363], // Kirkcolm/Reseda
-                [34.2930, -118.5355], // Along Kirkcolm
-                [34.2917, -118.5363], // Beaufait/Reseda
-                [34.2915, -118.5355], // Along Beaufait
-                [34.2910, -118.5357], // Turn towards Dunnicliffe
-                [34.2908, -118.5360], // Dunnicliffe Court
-                [34.2912, -118.5365], // Up Darby
-                [34.2920, -118.5367], // Along Eddleston
-                [34.2925, -118.5365], // North
-                [34.2932, -118.5363]  // Close polygon
+                [34.2932, -118.5363], // Start at Kirkcolm/Reseda
+                [34.2932, -118.5348], // East along Kirkcolm
+                [34.2928, -118.5348], // South to Celtic
+                [34.2924, -118.5348], // Continue south
+                [34.2917, -118.5348], // To Beaufait
+                [34.2917, -118.5363], // West along Beaufait to Reseda
+                [34.2917, -118.5368], // Slight curve
+                [34.2910, -118.5368], // South to Dunnicliffe
+                [34.2910, -118.5363], // Along Dunnicliffe
+                [34.2915, -118.5363], // Back north
+                [34.2920, -118.5363], // Continue north
+                [34.2925, -118.5363], // Further north
+                [34.2932, -118.5363]  // Back to start
             ];
 
             log('Adding boundary polygon...');
@@ -117,18 +120,29 @@
 
             log('Street labels added');
 
+            function addHelpMarker(position, type) {
+                const markerClass = type === "Needs Help" ? 'help-marker' : 'helper-marker';
+                const markerIcon = L.divIcon({
+                    className: markerClass,
+                    html: type === "Needs Help" ? '!' : 'H',
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+
+                const marker = L.marker(position, { 
+                    icon: markerIcon,
+                    zIndexOffset: 1000
+                }).addTo(map);
+
+                marker.bindPopup(`<b>${type}</b><br>${position.join(', ')}`).openPopup();
+            }
+
             // Basic help request function
             window.requestHelp = function() {
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition((position) => {
-                        const { latitude, longitude } = position.coords;
-                        L.marker([latitude, longitude], {
-                            icon: L.divIcon({
-                                className: 'help-marker',
-                                html: '!',
-                                iconSize: [30, 30]
-                            })
-                        }).addTo(map).bindPopup('Help needed here!').openPopup();
+                        const pos = [position.coords.latitude, position.coords.longitude];
+                        addHelpMarker(pos, "Needs Help");
                     });
                 }
             };
@@ -137,14 +151,8 @@
             window.offerHelp = function() {
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition((position) => {
-                        const { latitude, longitude } = position.coords;
-                        L.marker([latitude, longitude], {
-                            icon: L.divIcon({
-                                className: 'helper-marker',
-                                html: 'H',
-                                iconSize: [30, 30]
-                            })
-                        }).addTo(map).bindPopup('Helper available here!').openPopup();
+                        const pos = [position.coords.latitude, position.coords.longitude];
+                        addHelpMarker(pos, "Can Help");
                     });
                 }
             };
