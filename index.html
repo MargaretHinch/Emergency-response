@@ -4,257 +4,203 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Emergency Response System</title>
+    <title>Emergency Response Map</title>
+    
+    <!-- Load Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    
     <style>
-        /* Previous styles remain the same */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
+            margin: 0;
             padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        
+        #map {
+            height: 500px;
+            border-radius: 8px;
+            margin-top: 20px;
         }
 
-        .emergency-button {
+        .help-button {
             width: 100%;
-            padding: 20px;
-            font-size: 24px;
+            padding: 15px;
+            font-size: 18px;
             margin: 10px 0;
             border: none;
             border-radius: 8px;
             cursor: pointer;
+            color: white;
         }
 
         .need-help {
             background-color: #dc3545;
-            color: white;
         }
 
         .offer-help {
             background-color: #28a745;
-            color: white;
         }
 
-        .status {
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 8px;
-            display: none;
-        }
-
-        .alert {
-            background-color: #dc3545;
-            color: white;
-        }
-
-        .success {
-            background-color: #28a745;
-            color: white;
-        }
-
-        .address-correction {
-            background: white;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 8px;
-            color: black;
-        }
-
-        .address-input {
-            width: 100%;
-            padding: 8px;
-            margin: 5px 0;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-
-        .confirm-button {
-            background: #007bff;
-            color: white;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-top: 5px;
-        }
-
-        .location-details {
-            margin-top: 10px;
-            font-size: 0.9em;
-            background: rgba(255, 255, 255, 0.1);
+        .legend {
             padding: 10px;
-            border-radius: 4px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
 
-        .technical-details {
-            font-size: 0.8em;
-            opacity: 0.9;
+        .legend-item {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            border-radius: 50%;
+        }
+
+        .help-marker {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            background: red;
+            border-radius: 50%;
+            color: white;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
-    <h1>Emergency Response System</h1>
+    <h1>Porter Ranch Emergency Response Map</h1>
     
-    <div id="locationStatus"></div>
+    <button class="help-button need-help" onclick="requestHelp()">I Need Help</button>
+    <button class="help-button offer-help" onclick="offerHelp()">I Can Help</button>
+    
+    <div id="map"></div>
 
-    <button id="needHelp" class="emergency-button need-help">
-        I Need Emergency Help
-    </button>
-
-    <button id="offerHelp" class="emergency-button offer-help">
-        I Can Offer Help
-    </button>
-
-    <div id="helpStatus" class="status"></div>
-    <div id="offerStatus" class="status"></div>
-
+    <!-- Load Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    
     <script>
-        let currentCoords = null;
+        // Initialize map centered on Porter Ranch
+        const map = L.map('map').setView([34.282, -118.5556], 15);
 
-        async function getAddressFromCoordinates(latitude, longitude) {
-            try {
-                const response = await fetch(
-                    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-                );
-                const data = await response.json();
-                return data.display_name;
-            } catch (error) {
-                console.error('Error getting address:', error);
-                return null;
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Sample evacuation routes
+        const evacuationRoutes = [
+            {
+                name: "Primary Route",
+                path: [
+                    [34.282, -118.5556],
+                    [34.285, -118.5530],
+                    [34.288, -118.5500]
+                ],
+                color: "#FF0000"
+            },
+            {
+                name: "Secondary Route",
+                path: [
+                    [34.282, -118.5556],
+                    [34.280, -118.5530],
+                    [34.278, -118.5500]
+                ],
+                color: "#0000FF"
+            }
+        ];
+
+        // Add evacuation routes to map
+        evacuationRoutes.forEach(route => {
+            L.polyline(route.path, {
+                color: route.color,
+                weight: 4,
+                opacity: 0.7
+            })
+            .bindPopup(`Evacuation Route: ${route.name}`)
+            .addTo(map);
+        });
+
+        // Store help requests
+        let helpRequests = [];
+
+        function requestHelp() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    const { latitude, longitude } = position.coords;
+                    addHelpMarker([latitude, longitude], "Needs Help");
+                }, (error) => {
+                    alert("Please enable location services or enter address manually");
+                });
+            } else {
+                alert("Geolocation is not supported by your browser");
             }
         }
 
-        function createAddressCorrectionForm(initialAddress, statusElement, isHelpRequest) {
-            const correctionDiv = document.createElement('div');
-            correctionDiv.className = 'address-correction';
-            correctionDiv.innerHTML = `
-                <p>Please verify or correct your address:</p>
-                <input type="text" class="address-input" value="${initialAddress}" 
-                    placeholder="Enter correct street address">
-                <button class="confirm-button">Confirm Address</button>
-            `;
+        function offerHelp() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((position) => {
+                    const { latitude, longitude } = position.coords;
+                    addHelpMarker([latitude, longitude], "Can Help");
+                }, (error) => {
+                    alert("Please enable location services or enter address manually");
+                });
+            } else {
+                alert("Geolocation is not supported by your browser");
+            }
+        }
 
-            const input = correctionDiv.querySelector('.address-input');
-            const button = correctionDiv.querySelector('.confirm-button');
-
-            button.addEventListener('click', () => {
-                const correctedAddress = input.value;
-                correctionDiv.remove();
-                displayFinalStatus(correctedAddress, statusElement, isHelpRequest);
+        function addHelpMarker(position, type) {
+            const icon = L.divIcon({
+                className: 'help-marker',
+                html: type === "Needs Help" ? '!' : 'H',
+                iconSize: [30, 30]
             });
 
-            return correctionDiv;
+            const marker = L.marker(position, { icon })
+                .bindPopup(`<b>${type}</b><br>Location: ${position[0].toFixed(4)}, ${position[1].toFixed(4)}`)
+                .addTo(map);
+
+            helpRequests.push({
+                position,
+                type,
+                marker
+            });
         }
 
-        function displayFinalStatus(address, statusElement, isHelpRequest) {
-            const locationDetails = document.createElement('div');
-            locationDetails.className = 'location-details';
-            
-            const message = isHelpRequest ? 'Help requested at:' : 'Help offered from:';
-            
-            locationDetails.innerHTML = `
-                <strong>${message}</strong><br>
-                ${address}<br>
-                ${currentCoords ? `
-                    <div class="technical-details">
-                        Coordinates (for emergency services): ${currentCoords.latitude.toFixed(4)}, ${currentCoords.longitude.toFixed(4)}
-                    </div>
-                ` : ''}
+        // Add legend
+        const legend = L.control({ position: 'bottomright' });
+        legend.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'legend');
+            div.innerHTML = `
+                <h4 style="margin: 0 0 10px 0">Legend</h4>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: red;"></div>
+                    Needs Help
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #28a745;"></div>
+                    Can Help
+                </div>
+                <div class="legend-item">
+                    <div style="width: 20px; height: 4px; background: red; margin-right: 8px;"></div>
+                    Primary Route
+                </div>
+                <div class="legend-item">
+                    <div style="width: 20px; height: 4px; background: blue; margin-right: 8px;"></div>
+                    Secondary Route
+                </div>
             `;
-
-            // Update status message
-            statusElement.textContent = isHelpRequest ? 
-                'Help request received! Emergency services would be notified in a live system.' :
-                'Thank you for offering to help! In a live system, you would be notified of nearby needs.';
-            
-            statusElement.appendChild(locationDetails);
-        }
-
-        async function updateStatusWithLocation(position, statusElement, isHelpRequest) {
-            const { latitude, longitude } = position.coords;
-            currentCoords = { latitude, longitude };
-            
-            const approximateAddress = await getAddressFromCoordinates(latitude, longitude);
-            
-            // Create and add the address correction form
-            const correctionForm = createAddressCorrectionForm(
-                approximateAddress || "Address not found, please enter manually",
-                statusElement,
-                isHelpRequest
-            );
-            statusElement.appendChild(correctionForm);
-        }
-
-        document.getElementById('needHelp').addEventListener('click', async () => {
-            const status = document.getElementById('helpStatus');
-            status.style.display = 'block';
-            status.className = 'status alert';
-            status.textContent = 'Getting your location...';
-            
-            try {
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        async (position) => {
-                            await updateStatusWithLocation(position, status, true);
-                        },
-                        (error) => {
-                            const correctionForm = createAddressCorrectionForm(
-                                "",
-                                status,
-                                true
-                            );
-                            status.textContent = 'Please enter your address manually:';
-                            status.appendChild(correctionForm);
-                        }
-                    );
-                } else {
-                    const correctionForm = createAddressCorrectionForm(
-                        "",
-                        status,
-                        true
-                    );
-                    status.textContent = 'Please enter your address manually:';
-                    status.appendChild(correctionForm);
-                }
-            } catch (error) {
-                status.textContent = 'An error occurred. Please try again or call emergency services directly.';
-            }
-        });
-
-        document.getElementById('offerHelp').addEventListener('click', async () => {
-            const status = document.getElementById('offerStatus');
-            status.style.display = 'block';
-            status.className = 'status success';
-            status.textContent = 'Getting your location...';
-            
-            try {
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        async (position) => {
-                            await updateStatusWithLocation(position, status, false);
-                        },
-                        (error) => {
-                            const correctionForm = createAddressCorrectionForm(
-                                "",
-                                status,
-                                false
-                            );
-                            status.textContent = 'Please enter your address manually:';
-                            status.appendChild(correctionForm);
-                        }
-                    );
-                } else {
-                    const correctionForm = createAddressCorrectionForm(
-                        "",
-                        status,
-                        false
-                    );
-                    status.textContent = 'Please enter your address manually:';
-                    status.appendChild(correctionForm);
-                }
-            } catch (error) {
-                status.textContent = 'An error occurred. Please try again.';
-            }
-        });
+            return div;
+        };
+        legend.addTo(map);
     </script>
 </body>
 </html>
