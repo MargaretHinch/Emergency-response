@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neighborhood Boundary Test</title>
+    <title>Detailed Neighborhood Boundary Test</title>
     
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     
     <style>
@@ -16,7 +15,7 @@
         }
         
         #map { 
-            height: 600px; 
+            height: 700px; 
             width: 100%; 
             border-radius: 8px; 
             border: 2px solid #ccc;
@@ -29,23 +28,33 @@
             padding: 15px;
             margin-bottom: 20px;
         }
+
+        .legend {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            z-index: 1000;
+        }
     </style>
 </head>
 <body>
     <div class="info-box">
-        <h1>Neighborhood Boundary Test</h1>
-        <p>Blue polygon shows the neighborhood boundary. Markers indicate corner points and center.
-           Click markers to see labels.</p>
+        <h1>Detailed Neighborhood Boundary Test</h1>
+        <p>Blue polygon shows the neighborhood boundary. Numbers indicate the sequence of boundary points.
+           Click markers to see coordinates.</p>
     </div>
     
     <div id="map"></div>
 
-    <!-- Leaflet JavaScript -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     
     <script>
         // Initialize map
-        const map = L.map('map').setView([34.289940, -118.538210], 17);
+        const map = L.map('map').setView([34.290000, -118.537000], 16);
 
         // Add OpenStreetMap tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -53,13 +62,26 @@
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Define boundary coordinates
+        // Define boundary coordinates in sequence
         const boundaryCoords = [
-            [34.289931, -118.536333], // Top left
-            [34.293530, -118.539069], // Top right
-            [34.286902, -118.536161], // Bottom right
-            [34.286981, -118.531923], // Bottom left
-            [34.289931, -118.536333]  // Back to start to close polygon
+            [34.292236, -118.542148], // 1. Top left
+            [34.293619, -118.538704], // 2
+            [34.291731, -118.536118], // 3
+            [34.291350, -118.536472], // 4
+            [34.290677, -118.535936], // 5
+            [34.290730, -118.535550], // 6
+            [34.289950, -118.535700], // 7
+            [34.289923, -118.535496], // 8
+            [34.290562, -118.535174], // 9
+            [34.290030, -118.534187], // 10
+            [34.289835, -118.534273], // 11
+            [34.288435, -118.532782], // 12
+            [34.288302, -118.532481], // 13
+            [34.286857, -118.531569], // 14
+            [34.285936, -118.534648], // 15
+            [34.287345, -118.538522], // 16
+            [34.289250, -118.540539], // 17
+            [34.292236, -118.542148]  // 18. Back to start
         ];
 
         // Add boundary polygon
@@ -70,27 +92,36 @@
             fillOpacity: 0.1
         }).addTo(map);
 
-        // Add markers at each corner with labels
-        const corners = [
-            { coords: [34.289931, -118.536333], label: 'Top Left' },
-            { coords: [34.293530, -118.539069], label: 'Top Right' },
-            { coords: [34.286902, -118.536161], label: 'Bottom Right' },
-            { coords: [34.286981, -118.531923], label: 'Bottom Left' }
-        ];
-
-        corners.forEach(corner => {
-            L.marker(corner.coords)
-                .bindPopup(corner.label)
-                .addTo(map);
+        // Add numbered markers at each point
+        boundaryCoords.forEach((coords, index) => {
+            if (index < boundaryCoords.length - 1) { // Skip the last point as it's the same as first
+                L.marker(coords)
+                    .bindPopup(`Point ${index + 1}<br>Lat: ${coords[0]}<br>Lon: ${coords[1]}`)
+                    .addTo(map);
+            }
         });
 
-        // Add center point marker
-        const centerMarker = L.marker([34.289940, -118.538210])
-            .bindPopup('Center Point')
-            .addTo(map);
+        // Add key streets for verification
+        const streets = [
+            { name: "Kirkcolm Ln", pos: [34.2932, -118.5363] },
+            { name: "Beaufait Ave", pos: [34.2917, -118.5363] },
+            { name: "Eddleston Dr", pos: [34.2920, -118.5367] },
+            { name: "Laughton Way", pos: [34.2915, -118.5360] },
+            { name: "Darby Ave", pos: [34.2912, -118.5365] },
+            { name: "Dunnicliffe Ct", pos: [34.2908, -118.5360] }
+        ];
 
-        // Make center marker orange to stand out
-        centerMarker._icon.style.filter = 'hue-rotate(30deg)';
+        // Add street labels
+        streets.forEach(street => {
+            L.marker(street.pos, {
+                icon: L.divIcon({
+                    className: 'street-label',
+                    html: `<div style="background: white; padding: 3px; border: 1px solid #666; border-radius: 3px; font-size: 12px;">${street.name}</div>`,
+                    iconSize: [100, 20],
+                    iconAnchor: [50, 10]
+                })
+            }).addTo(map);
+        });
 
         // Fit map to boundary
         map.fitBounds(polygon.getBounds());
