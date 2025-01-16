@@ -4,12 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Emergency Response Map</title>
+    <title>Neighborhood Emergency Response Map</title>
     
     <!-- Load Leaflet CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     
     <style>
+        /* Previous styles remain the same */
         body {
             margin: 0;
             padding: 20px;
@@ -48,19 +49,6 @@
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
 
-        .legend-item {
-            margin: 5px 0;
-            display: flex;
-            align-items: center;
-        }
-
-        .legend-color {
-            width: 20px;
-            height: 20px;
-            margin-right: 8px;
-            border-radius: 50%;
-        }
-
         .help-marker {
             display: flex;
             align-items: center;
@@ -84,10 +72,18 @@
             color: white;
             font-weight: bold;
         }
+
+        .neighborhood-label {
+            background: none;
+            border: none;
+            box-shadow: none;
+            font-weight: bold;
+            color: #666;
+        }
     </style>
 </head>
 <body>
-    <h1>Porter Ranch Emergency Response Map</h1>
+    <h1>Neighborhood Emergency Response Map</h1>
     
     <button class="help-button need-help" onclick="requestHelp()">I Need Help</button>
     <button class="help-button offer-help" onclick="offerHelp()">I Can Help</button>
@@ -98,8 +94,17 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     
     <script>
-        // Initialize map centered on Porter Ranch
-        const map = L.map('map').setView([34.282, -118.5556], 15);
+        // Define the neighborhood bounds
+        const southWest = L.latLng(34.279, -118.558);  // SW corner
+        const northEast = L.latLng(34.285, -118.552);  // NE corner
+        const bounds = L.latLngBounds(southWest, northEast);
+
+        // Initialize map with restricted bounds
+        const map = L.map('map', {
+            maxBounds: bounds.pad(0.1), // Add 10% padding around bounds
+            maxBoundsViscosity: 1.0,    // Make bounds "sticky"
+            minZoom: 15                 // Restrict zoom out
+        }).fitBounds(bounds);
 
         // Add OpenStreetMap tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -107,37 +112,41 @@
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Sample evacuation routes
-        const evacuationRoutes = [
-            {
-                name: "Primary Route",
-                path: [
-                    [34.282, -118.5556],
-                    [34.285, -118.5530],
-                    [34.288, -118.5500]
-                ],
-                color: "#FF0000"
-            },
-            {
-                name: "Secondary Route",
-                path: [
-                    [34.282, -118.5556],
-                    [34.280, -118.5530],
-                    [34.278, -118.5500]
-                ],
-                color: "#0000FF"
-            }
+        // Define neighborhood boundary
+        const neighborhoodBoundary = [
+            [34.2835, -118.5575], // Kirkolm Ln
+            [34.2835, -118.5525], // Reseda Blvd
+            [34.2795, -118.5525], // South boundary
+            [34.2795, -118.5575], // West boundary
+            [34.2835, -118.5575]  // Close the polygon
         ];
 
-        // Add evacuation routes to map
-        evacuationRoutes.forEach(route => {
-            L.polyline(route.path, {
-                color: route.color,
-                weight: 4,
-                opacity: 0.7
-            })
-            .bindPopup(`Evacuation Route: ${route.name}`)
-            .addTo(map);
+        // Add neighborhood boundary
+        L.polygon(neighborhoodBoundary, {
+            color: '#4a5568',
+            weight: 2,
+            fillColor: '#4a5568',
+            fillOpacity: 0.1
+        }).addTo(map);
+
+        // Add street labels
+        const streets = [
+            { name: "Kirkolm Ln", pos: [34.2835, -118.556] },
+            { name: "Beaufait Ave", pos: [34.282, -118.554] },
+            { name: "Celtic Way", pos: [34.281, -118.555] },
+            { name: "Eddleston Dr", pos: [34.2815, -118.556] },
+            { name: "Laughton Way", pos: [34.2805, -118.555] },
+            { name: "Darby Ave", pos: [34.281, -118.557] },
+            { name: "Dunnicliffe Ct", pos: [34.280, -118.556] }
+        ];
+
+        streets.forEach(street => {
+            L.marker(street.pos, {
+                icon: L.divIcon({
+                    className: 'neighborhood-label',
+                    html: street.name
+                })
+            }).addTo(map);
         });
 
         // Store help requests
@@ -147,7 +156,12 @@
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((position) => {
                     const { latitude, longitude } = position.coords;
-                    addHelpMarker([latitude, longitude], "Needs Help");
+                    // Check if location is within bounds
+                    if (bounds.contains([latitude, longitude])) {
+                        addHelpMarker([latitude, longitude], "Needs Help");
+                    } else {
+                        alert("Location is outside the neighborhood boundaries");
+                    }
                 }, (error) => {
                     alert("Please enable location services or enter address manually");
                 });
@@ -160,7 +174,12 @@
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((position) => {
                     const { latitude, longitude } = position.coords;
-                    addHelpMarker([latitude, longitude], "Can Help");
+                    // Check if location is within bounds
+                    if (bounds.contains([latitude, longitude])) {
+                        addHelpMarker([latitude, longitude], "Can Help");
+                    } else {
+                        alert("Location is outside the neighborhood boundaries");
+                    }
                 }, (error) => {
                     alert("Please enable location services or enter address manually");
                 });
@@ -203,12 +222,8 @@
                     Can Help
                 </div>
                 <div class="legend-item">
-                    <div style="width: 20px; height: 4px; background: red; margin-right: 8px;"></div>
-                    Primary Route
-                </div>
-                <div class="legend-item">
-                    <div style="width: 20px; height: 4px; background: blue; margin-right: 8px;"></div>
-                    Secondary Route
+                    <div style="width: 20px; height: 4px; background: #4a5568; margin-right: 8px;"></div>
+                    Neighborhood Boundary
                 </div>
             `;
             return div;
