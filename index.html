@@ -5,12 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Neighborhood Emergency Response Map</title>
     
-    <!-- Load Leaflet from CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     
     <style>
-        body { margin: 0; padding: 20px; font-family: system-ui, sans-serif; }
-        #map { height: 500px; width: 100%; border-radius: 8px; margin-top: 20px; }
+        body { 
+            margin: 0; 
+            padding: 20px; 
+            font-family: system-ui, sans-serif; 
+        }
+        
+        #map { 
+            height: 500px; 
+            width: 100%; 
+            border-radius: 8px; 
+            margin-top: 20px; 
+        }
+
         .help-button {
             width: 100%;
             padding: 15px;
@@ -21,13 +31,81 @@
             cursor: pointer;
             color: white;
         }
+
         .need-help { background-color: #dc3545; }
         .offer-help { background-color: #28a745; }
-        #debug { 
-            margin-top: 10px; 
-            padding: 10px; 
-            background: #f0f0f0; 
-            border-radius: 4px; 
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: relative;
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .close-button {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .address-input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        .confirm-button {
+            background: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        /* Help Markers */
+        .custom-div-icon {
+            width: 50px !important;
+            height: 50px !important;
+            font-size: 24px;
+            font-weight: bold;
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            border: 4px solid white;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+            color: white;
+        }
+
+        .help-needed {
+            background-color: rgb(255, 0, 0);
+        }
+
+        .help-offered {
+            background-color: rgb(0, 255, 0);
         }
     </style>
 </head>
@@ -38,176 +116,146 @@
     <button class="help-button offer-help" onclick="offerHelp()">I Can Help</button>
     
     <div id="map"></div>
-    <div id="debug"></div>
+
+    <!-- Address Verification Modal -->
+    <div id="addressModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModal()">&times;</span>
+            <h2>Verify Your Address</h2>
+            <p>Please confirm or correct your address:</p>
+            <input type="text" id="addressInput" class="address-input" placeholder="Enter your address">
+            <button onclick="confirmAddress()" class="confirm-button">Confirm Address</button>
+        </div>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     
     <script>
-        const debugDiv = document.getElementById('debug');
-        
-        function log(message) {
-            debugDiv.innerHTML += `<div>${message}</div>`;
-            console.log(message);
+        // Initialize variables
+        let currentRequestType = null;
+        let currentPosition = null;
+
+        // Initialize map
+        const map = L.map('map', {
+            center: [34.2932, -118.5363],
+            zoom: 17,
+            minZoom: 15,
+            maxZoom: 19
+        });
+
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Add street labels
+        const streets = [
+            { name: "Kirkcolm Ln", pos: [34.2932, -118.5363] },
+            { name: "Beaufait Ave", pos: [34.2917, -118.5363] },
+            { name: "Eddleston Dr", pos: [34.2920, -118.5367] },
+            { name: "Laughton Way", pos: [34.2915, -118.5360] },
+            { name: "Darby Ave", pos: [34.2912, -118.5365] },
+            { name: "Dunnicliffe Ct", pos: [34.2908, -118.5360] },
+            { name: "Reseda Blvd", pos: [34.2925, -118.5363] }
+        ];
+
+        streets.forEach(street => {
+            L.marker(street.pos, {
+                icon: L.divIcon({
+                    className: 'neighborhood-label',
+                    html: street.name
+                })
+            }).addTo(map);
+        });
+
+        // Modal functions
+        function showModal(address = "") {
+            document.getElementById('addressModal').style.display = 'block';
+            document.getElementById('addressInput').value = address;
         }
 
-        try {
-            log('Initializing map...');
-            
-            // Define the target area (Porter Ranch - Kirkcolm/Reseda area)
-            const center = [34.2932, -118.5363];
-            
-            // Create the map instance with specific Firefox settings
-            const map = L.map('map', {
-                preferCanvas: true // This can help with Firefox rendering
-            }).setView(center, 17);
-            
-            log('Map instance created');
+        function closeModal() {
+            document.getElementById('addressModal').style.display = 'none';
+        }
 
-            // Use a Firefox-friendly tile provider
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                maxZoom: 19,
-                attribution: '© OpenStreetMap contributors, © CARTO',
-                crossOrigin: true,
-                subdomains: 'abcd'
-            }).addTo(map);
+        // Help request functions
+        function requestHelp() {
+            currentRequestType = "help-needed";
+            getLocation();
+        }
 
-            // Define the neighborhood boundary following actual streets
-            const neighborhoodBoundary = [
-                [34.2932, -118.5363], // Start at Kirkcolm/Reseda
-                [34.2932, -118.5348], // East along Kirkcolm
-                [34.2928, -118.5348], // South to Celtic
-                [34.2924, -118.5348], // Continue south
-                [34.2917, -118.5348], // To Beaufait
-                [34.2917, -118.5363], // West along Beaufait to Reseda
-                [34.2917, -118.5368], // Slight curve
-                [34.2910, -118.5368], // South to Dunnicliffe
-                [34.2910, -118.5363], // Along Dunnicliffe
-                [34.2915, -118.5363], // Back north
-                [34.2920, -118.5363], // Continue north
-                [34.2925, -118.5363], // Further north
-                [34.2932, -118.5363]  // Back to start
-            ];
+        function offerHelp() {
+            currentRequestType = "help-offered";
+            getLocation();
+        }
 
-            log('Adding boundary polygon...');
-
-            // Add the boundary polygon
-            L.polygon(neighborhoodBoundary, {
-                color: '#4a5568',
-                weight: 2,
-                fillColor: '#4a5568',
-                fillOpacity: 0.1
-            }).addTo(map);
-
-            // Add street labels
-            const streets = [
-                { name: "Kirkcolm Ln", pos: [34.2932, -118.5363] },
-                { name: "Beaufait Ave", pos: [34.2917, -118.5363] },
-                { name: "Eddleston Dr", pos: [34.2920, -118.5367] },
-                { name: "Laughton Way", pos: [34.2915, -118.5360] },
-                { name: "Darby Ave", pos: [34.2912, -118.5365] },
-                { name: "Dunnicliffe Ct", pos: [34.2908, -118.5360] },
-                { name: "Reseda Blvd", pos: [34.2925, -118.5363] }
-            ];
-
-            streets.forEach(street => {
-                L.marker(street.pos, {
-                    icon: L.divIcon({
-                        className: 'neighborhood-label',
-                        html: street.name
-                    })
-                }).addTo(map);
-            });
-
-            log('Street labels added');
-
-            async function getAddressFromCoordinates(latitude, longitude) {
-                try {
-                    const response = await fetch(
-                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-                    );
-                    const data = await response.json();
-                    return data.display_name;
-                } catch (error) {
-                    console.error('Error getting address:', error);
-                    return null;
-                }
+        async function getAddressFromCoordinates(latitude, longitude) {
+            try {
+                const response = await fetch(
+                    `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+                );
+                const data = await response.json();
+                return data.display_name;
+            } catch (error) {
+                console.error('Error getting address:', error);
+                return null;
             }
+        }
 
-            function showModal(address = "") {
-                document.getElementById('addressModal').style.display = 'block';
-                document.getElementById('addressInput').value = address;
-            }
-
-            function closeModal() {
-                document.getElementById('addressModal').style.display = 'none';
-            }
-
-            let currentRequestType = null;
-            let currentPosition = null;
-
-            function requestHelp() {
-                currentRequestType = "Needs Help";
-                getLocation();
-            }
-
-            function offerHelp() {
-                currentRequestType = "Can Help";
-                getLocation();
-            }
-
-            function getLocation() {
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(async (position) => {
-                        const { latitude, longitude } = position.coords;
-                        currentPosition = [latitude, longitude];
-                        const address = await getAddressFromCoordinates(latitude, longitude);
-                        showModal(address);
-                    }, (error) => {
-                        showModal(); // Show empty modal for manual entry
-                    });
-                } else {
-                    showModal(); // Show empty modal for manual entry
-                }
-            }
-
-            async function confirmAddress() {
-                const address = document.getElementById('addressInput').value;
-                if (address) {
-                    addHelpMarker(currentPosition, currentRequestType, address);
-                    closeModal();
-                } else {
-                    alert("Please enter an address");
-                }
-            }
-
-            function addHelpMarker(position, type, address) {
-                const markerClass = type === "Needs Help" ? 'help-marker' : 'helper-marker';
-                const markerIcon = L.divIcon({
-                    className: markerClass,
-                    html: type === "Needs Help" ? '!' : 'H',
-                    iconSize: [40, 40],
-                    iconAnchor: [20, 20]
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(async (position) => {
+                    const { latitude, longitude } = position.coords;
+                    currentPosition = [latitude, longitude];
+                    const address = await getAddressFromCoordinates(latitude, longitude);
+                    showModal(address);
+                }, (error) => {
+                    showModal();
                 });
-
-                const marker = L.marker(position, { 
-                    icon: markerIcon,
-                    zIndexOffset: 1000
-                }).addTo(map);
-
-                const popupContent = `
-                    <b>${type}</b><br>
-                    ${address}<br>
-                    <small>Coordinates: ${position[0]}, ${position[1]}</small>
-                `;
-                
-                marker.bindPopup(popupContent).openPopup();
+            } else {
+                showModal();
             }
+        }
 
-            log('Map initialization complete');
+        function addMarker(position, type, address) {
+            const markerText = type === "help-needed" ? "!" : "H";
+            const className = `custom-div-icon ${type}`;
+            
+            const marker = L.marker(position, {
+                icon: L.divIcon({
+                    className: className,
+                    html: markerText,
+                    iconSize: [50, 50],
+                    iconAnchor: [25, 25]
+                })
+            }).addTo(map);
 
-        } catch (error) {
-            log(`Error initializing map: ${error.message}`);
-            document.getElementById('map').innerHTML = 'Error loading map: ' + error.message;
+            const popupContent = `
+                <b>${type === "help-needed" ? "Needs Help" : "Can Help"}</b><br>
+                ${address}<br>
+                <small>Coordinates: ${position[0].toFixed(6)}, ${position[1].toFixed(6)}</small>
+            `;
+            
+            marker.bindPopup(popupContent).openPopup();
+        }
+
+        async function confirmAddress() {
+            const address = document.getElementById('addressInput').value;
+            if (address) {
+                addMarker(currentPosition, currentRequestType, address);
+                closeModal();
+            } else {
+                alert("Please enter an address");
+            }
+        }
+
+        // Close modal if clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('addressModal');
+            if (event.target == modal) {
+                closeModal();
+            }
         }
     </script>
 </body>
