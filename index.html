@@ -60,7 +60,6 @@
         .offer-help { background-color: #009E73; }  /* Colorblind-friendly blue-green */
         .safe { background-color: #0072B2; }        /* Colorblind-friendly blue */
 
-        /* Modal Styles */
         .modal {
             display: none;
             position: fixed;
@@ -172,7 +171,7 @@
                     aria-label="Address input"
                 >
                 <p class="help-text">
-                    Please enter your complete street address to ensure accurate location placement
+                    Please enter your house number and street name
                 </p>
                 <div class="modal-buttons">
                     <button class="modal-button cancel-button" onclick="closeModal()">Cancel</button>
@@ -185,7 +184,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     
     <script>
-        // Initialize variables
         let map = null;
         let currentRequestType = null;
         let markers = [];
@@ -231,43 +229,38 @@
             }
         };
 
-        // Street coordinates with actual known address points
-        const streetCoordinates = {
+        // Simplified street definitions with center points
+        const streets = {
             'Eddleston': {
-                points: [
-                    { number: 12000, coords: [34.291585, -118.538956] },
-                    { number: 12047, coords: [34.291473, -118.538500] },
-                    { number: 12099, coords: [34.291236, -118.536032] }
-                ],
+                center: [34.291473, -118.538500],
                 suffix: 'Drive'
             },
             'Beaufait': {
-                points: [
-                    { number: 12000, coords: [34.290677, -118.538574] },
-                    { number: 12011, coords: [34.290611, -118.538100] },
-                    { number: 12099, coords: [34.290180, -118.535635] }
-                ],
+                center: [34.290611, -118.538100],
                 suffix: 'Avenue'
             },
             'Laughton': {
-                points: [
-                    { number: 11850, coords: [34.289124, -118.537828] },
-                    { number: 11866, coords: [34.289050, -118.537500] },
-                    { number: 11899, coords: [34.288760, -118.535982] }
-                ],
+                center: [34.289050, -118.537500],
                 suffix: 'Way'
             },
             'Darby': {
-                points: [
-                    { number: 11900, coords: [34.288433, -118.537485] },
-                    { number: 11914, coords: [34.288400, -118.537200] },
-                    { number: 11999, coords: [34.288069, -118.535639] }
-                ],
+                center: [34.288400, -118.537200],
                 suffix: 'Avenue'
+            },
+            'Celtic': {
+                center: [34.289815, -118.538171],
+                suffix: 'Court'
+            },
+            'Kirkcolm': {
+                center: [34.292950, -118.539833],
+                suffix: 'Lane'
+            },
+            'Dunnicliffe': {
+                center: [34.287742, -118.537142],
+                suffix: 'Court'
             }
         };
 
-        // Initialize map
         function initMap() {
             map = L.map('map', {
                 center: [34.290000, -118.537000],
@@ -280,7 +273,6 @@
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
 
-            // Add boundary polygon
             const polygon = L.polygon(boundaryCoords, {
                 color: '#0072B2',
                 weight: 3,
@@ -292,45 +284,19 @@
             map.fitBounds(polygon.getBounds());
         }
 
-        function calculatePosition(address) {
+        function validateAddress(address) {
             const match = address.match(/^(\d+)\s+([A-Za-z]+)/);
             if (!match) return null;
 
             const [_, houseNumber, streetName] = match;
-            const street = streetCoordinates[streetName];
+            const street = streets[streetName];
+            
             if (!street) return null;
-
-            const number = parseInt(houseNumber);
-            
-            // Find the closest points to interpolate between
-            const points = street.points;
-            let point1, point2;
-            
-            // Find the two points that our address number falls between
-            for (let i = 0; i < points.length - 1; i++) {
-                if (number >= points[i].number && number <= points[i + 1].number) {
-                    point1 = points[i];
-                    point2 = points[i + 1];
-                    break;
-                }
-            }
-            
-            if (!point1 || !point2) {
-                // If number is outside our known range, use the closest point
-                if (number < points[0].number) {
-                    return points[0].coords;
-                }
-                return points[points.length - 1].coords;
-            }
-
-            // Calculate fraction between the two points
-            const fraction = (number - point1.number) / (point2.number - point1.number);
-            
-            // Interpolate between the two points
-            const lat = point1.coords[0] + (point2.coords[0] - point1.coords[0]) * fraction;
-            const lng = point1.coords[1] + (point2.coords[1] - point1.coords[1]) * fraction;
-
-            return [lat, lng];
+            return {
+                streetName,
+                houseNumber,
+                position: street.center
+            };
         }
 
         function addMarker(position, type, address) {
@@ -360,8 +326,7 @@
             
             const popupContent = `
                 <b>${config.label}</b><br>
-                ${address}<br>
-                <small>Coordinates: ${position[0].toFixed(6)}, ${position[1].toFixed(6)}</small>
+                ${address}
             `;
             
             marker.bindPopup(popupContent).openPopup();
@@ -402,13 +367,13 @@
                 return;
             }
 
-            const position = calculatePosition(address);
-            if (!position) {
+            const validatedAddress = validateAddress(address);
+            if (!validatedAddress) {
                 alert('Please enter a valid address format (e.g., 12047 Eddleston)');
                 return;
             }
 
-            addMarker(position, currentRequestType, address);
+            addMarker(validatedAddress.position, currentRequestType, address);
             closeModal();
         }
 
