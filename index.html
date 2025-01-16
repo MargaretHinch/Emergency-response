@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Neighborhood Emergency Response Map</title>
     
-    <!-- Load Leaflet CSS -->
+    <!-- Load Leaflet from CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     
     <style>
@@ -23,6 +23,12 @@
         }
         .need-help { background-color: #dc3545; }
         .offer-help { background-color: #28a745; }
+        #debug { 
+            margin-top: 10px; 
+            padding: 10px; 
+            background: #f0f0f0; 
+            border-radius: 4px; 
+        }
     </style>
 </head>
 <body>
@@ -32,28 +38,37 @@
     <button class="help-button offer-help" onclick="offerHelp()">I Can Help</button>
     
     <div id="map"></div>
+    <div id="debug"></div>
 
-    <!-- Load Leaflet JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     
     <script>
-        // Initialize the map
+        const debugDiv = document.getElementById('debug');
+        
+        function log(message) {
+            debugDiv.innerHTML += `<div>${message}</div>`;
+            console.log(message);
+        }
+
         try {
+            log('Initializing map...');
+            
             // Define the target area (Porter Ranch - Kirkcolm/Reseda area)
             const center = [34.2932, -118.5363];
             
-            // Create the map instance
+            // Create the map instance with specific Firefox settings
             const map = L.map('map', {
-                center: center,
-                zoom: 17,
-                minZoom: 15,
-                maxZoom: 19
-            });
+                preferCanvas: true // This can help with Firefox rendering
+            }).setView(center, 17);
+            
+            log('Map instance created');
 
-            // Add the OpenStreetMap tile layer
-            L.tileLayer('https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+            // Use a Firefox-friendly tile provider
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
                 maxZoom: 19,
-                attribution: '© OpenStreetMap contributors'
+                attribution: '© OpenStreetMap contributors, © CARTO',
+                crossOrigin: true,
+                subdomains: 'abcd'
             }).addTo(map);
 
             // Define the neighborhood boundary
@@ -69,6 +84,8 @@
                 [34.2925, -118.5365], // North
                 [34.2932, -118.5363]  // Close polygon
             ];
+
+            log('Adding boundary polygon...');
 
             // Add the boundary polygon
             L.polygon(neighborhoodBoundary, {
@@ -97,6 +114,8 @@
                     })
                 }).addTo(map);
             });
+
+            log('Street labels added');
 
             // Basic help request function
             window.requestHelp = function() {
@@ -130,8 +149,10 @@
                 }
             };
 
+            log('Map initialization complete');
+
         } catch (error) {
-            console.error('Map initialization error:', error);
+            log(`Error initializing map: ${error.message}`);
             document.getElementById('map').innerHTML = 'Error loading map: ' + error.message;
         }
     </script>
