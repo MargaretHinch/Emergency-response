@@ -231,49 +231,39 @@
             }
         };
 
-        // Street coordinates for address validation
+        // Street coordinates with actual known address points
         const streetCoordinates = {
-            'Kirkcolm': {
-                start: [34.292950, -118.539833],
-                end: [34.293402, -118.538370],
-                suffix: 'Lane',
-                baseNumber: 11900
-            },
             'Eddleston': {
-                start: [34.291731, -118.538956],
-                end: [34.291236, -118.536032],
-                suffix: 'Drive',
-                baseNumber: 11900
+                points: [
+                    { number: 12000, coords: [34.291585, -118.538956] },
+                    { number: 12047, coords: [34.291473, -118.538500] },
+                    { number: 12099, coords: [34.291236, -118.536032] }
+                ],
+                suffix: 'Drive'
             },
             'Beaufait': {
-                start: [34.290677, -118.538574],
-                end: [34.290180, -118.535635],
-                suffix: 'Avenue',
-                baseNumber: 11900
-            },
-            'Celtic': {
-                start: [34.289815, -118.538171],
-                end: [34.289530, -118.536325],
-                suffix: 'Court',
-                baseNumber: 11900
+                points: [
+                    { number: 12000, coords: [34.290677, -118.538574] },
+                    { number: 12011, coords: [34.290611, -118.538100] },
+                    { number: 12099, coords: [34.290180, -118.535635] }
+                ],
+                suffix: 'Avenue'
             },
             'Laughton': {
-                start: [34.289124, -118.537828],
-                end: [34.288760, -118.535982],
-                suffix: 'Way',
-                baseNumber: 11800
+                points: [
+                    { number: 11850, coords: [34.289124, -118.537828] },
+                    { number: 11866, coords: [34.289050, -118.537500] },
+                    { number: 11899, coords: [34.288760, -118.535982] }
+                ],
+                suffix: 'Way'
             },
             'Darby': {
-                start: [34.288433, -118.537485],
-                end: [34.288069, -118.535639],
-                suffix: 'Avenue',
-                baseNumber: 11900
-            },
-            'Dunnicliffe': {
-                start: [34.287742, -118.537142],
-                end: [34.287378, -118.535296],
-                suffix: 'Court',
-                baseNumber: 11900
+                points: [
+                    { number: 11900, coords: [34.288433, -118.537485] },
+                    { number: 11914, coords: [34.288400, -118.537200] },
+                    { number: 11999, coords: [34.288069, -118.535639] }
+                ],
+                suffix: 'Avenue'
             }
         };
 
@@ -312,16 +302,33 @@
 
             const number = parseInt(houseNumber);
             
-            // Calculate the fraction based on actual house numbers on the street
-            const numbersRange = 200; // House numbers typically span about 200 numbers
-            const fraction = (number - street.baseNumber) / numbersRange;
+            // Find the closest points to interpolate between
+            const points = street.points;
+            let point1, point2;
             
-            // Ensure fraction is between 0 and 1
-            const clampedFraction = Math.max(0, Math.min(1, fraction));
+            // Find the two points that our address number falls between
+            for (let i = 0; i < points.length - 1; i++) {
+                if (number >= points[i].number && number <= points[i + 1].number) {
+                    point1 = points[i];
+                    point2 = points[i + 1];
+                    break;
+                }
+            }
+            
+            if (!point1 || !point2) {
+                // If number is outside our known range, use the closest point
+                if (number < points[0].number) {
+                    return points[0].coords;
+                }
+                return points[points.length - 1].coords;
+            }
 
-            // Linear interpolation between start and end points
-            const lat = street.start[0] + (street.end[0] - street.start[0]) * clampedFraction;
-            const lng = street.start[1] + (street.end[1] - street.start[1]) * clampedFraction;
+            // Calculate fraction between the two points
+            const fraction = (number - point1.number) / (point2.number - point1.number);
+            
+            // Interpolate between the two points
+            const lat = point1.coords[0] + (point2.coords[0] - point1.coords[0]) * fraction;
+            const lng = point1.coords[1] + (point2.coords[1] - point1.coords[1]) * fraction;
 
             return [lat, lng];
         }
