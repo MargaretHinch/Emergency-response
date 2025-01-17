@@ -1,168 +1,392 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { MapPin, Loader2 } from 'lucide-react';
-import Papa from 'papaparse';
-
-const EddlestonAddressValidator = () => {
-  const [addressPoints, setAddressPoints] = useState({});
-  const [searchAddress, setSearchAddress] = useState('');
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const loadAddresses = async () => {
-      try {
-        const response = await window.fs.readFile('Eddleston Street addresses and Coordinates  Sheet1.csv', { encoding: 'utf8' });
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neighborhood Emergency Response Map</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    
+    <style>
+        /* [Previous styles remain the same] */
+        body { 
+            margin: 0; 
+            padding: 20px; 
+            font-family: system-ui, sans-serif; 
+        }
         
-        Papa.parse(response, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (results) => {
-            const addresses = {};
-            results.data.forEach(row => {
-              if (row.Number && row.Coordinate) {
-                // Create standardized address key
-                const addressKey = `${row.Number} EDDLESTON`;
-                // Split coordinates into [lat, lng] array
-                const coords = row.Coordinate.split(',').map(coord => parseFloat(coord.trim()));
-                addresses[addressKey] = coords;
-              }
-            });
-            setAddressPoints(addresses);
-            setLoading(false);
-          },
-          error: (error) => {
-            console.error('Error parsing CSV:', error);
-            setError('Failed to load address data');
-            setLoading(false);
-          }
-        });
-      } catch (err) {
-        console.error('Error loading file:', err);
-        setError('Failed to load address data');
-        setLoading(false);
-      }
-    };
+        #map { 
+            height: 600px; 
+            width: 100%; 
+            border-radius: 8px; 
+            border: 2px solid #ccc;
+            margin-top: 20px;
+        }
 
-    loadAddresses();
-  }, []);
+        .button-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
 
-  const normalizeAddress = (address) => {
-    return address.toUpperCase()
-      .replace(/[.,#-]/g, '')
-      .replace(/\s+/g, ' ')
-      .replace(/DRIVE|DR|STREET|ST|AVENUE|AVE/gi, '')
-      .trim();
-  };
+        @media (min-width: 768px) {
+            .button-container {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
 
-  const validateAddress = (address) => {
-    const normalized = normalizeAddress(address);
+        .status-button {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: white;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        .status-button:hover {
+            opacity: 0.9;
+        }
+
+        .need-help { background-color: #D55E00; }
+        .offer-help { background-color: #009E73; }
+        .safe { background-color: #0072B2; }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: relative;
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 8px;
+        }
+
+        .address-input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        .help-text {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .modal-button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .cancel-button {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+        }
+
+        .confirm-button {
+            background-color: #0072B2;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div role="main">
+        <h1>Neighborhood Emergency Response Map</h1>
+
+        <div class="button-container">
+            <button class="status-button need-help" onclick="requestHelp()">I Need Help</button>
+            <button class="status-button offer-help" onclick="offerHelp()">I Can Help</button>
+            <button class="status-button safe" onclick="markSafe()">I Am Safe</button>
+        </div>
+        
+        <div id="map"></div>
+
+        <div id="addressModal" class="modal">
+            <div class="modal-content">
+                <h2>Verify Your Address</h2>
+                <input 
+                    type="text" 
+                    id="addressInput" 
+                    class="address-input" 
+                    placeholder="Enter house number and street (e.g., 18740 Kirkcolm)"
+                >
+                <p class="help-text">
+                    Valid streets: Kirkcolm Lane, Eddleston Drive
+                </p>
+                <div class="modal-buttons">
+                    <button class="modal-button cancel-button" onclick="closeModal()">Cancel</button>
+                    <button class="modal-button confirm-button" onclick="confirmAddress()">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
     
-    // Check for exact match
-    if (addressPoints[normalized]) {
-      return {
-        valid: true,
-        position: addressPoints[normalized],
-        confidence: 'exact'
-      };
-    }
-    
-    // Look for close matches
-    const addresses = Object.keys(addressPoints);
-    for (const knownAddress of addresses) {
-      // Simple partial match
-      if (normalized.includes(knownAddress) || knownAddress.includes(normalized)) {
-        return {
-          valid: true,
-          position: addressPoints[knownAddress],
-          confidence: 'partial',
-          suggestedAddress: knownAddress
+    <script>
+        let map = null;
+        let currentRequestType = null;
+        let markers = [];
+
+        // Define boundary coordinates
+        const boundaryCoords = [
+            [34.292529, -118.542277],
+            [34.293814, -118.539230],
+            [34.291731, -118.536118],
+            [34.291350, -118.536472],
+            [34.290677, -118.535936],
+            [34.290730, -118.535550],
+            [34.289950, -118.535700],
+            [34.289923, -118.535496],
+            [34.290562, -118.535174],
+            [34.290030, -118.534187],
+            [34.289835, -118.534273],
+            [34.288435, -118.532782],
+            [34.288302, -118.532481],
+            [34.286857, -118.531569],
+            [34.285936, -118.534648],
+            [34.287345, -118.538522],
+            [34.289250, -118.540539],
+            [34.292529, -118.542277]
+        ];
+
+        const statusConfigs = {
+            'need-help': {
+                color: '#D55E00',
+                icon: '!',
+                label: 'Needs Help'
+            },
+            'offer-help': {
+                color: '#009E73',
+                icon: 'H',
+                label: 'Can Help'
+            },
+            'safe': {
+                color: '#0072B2',
+                icon: '✓',
+                label: 'Safe'
+            }
         };
-      }
-    }
-    
-    return {
-      valid: false
-    };
-  };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (searchAddress.trim()) {
-      const validationResult = validateAddress(searchAddress);
-      setResult(validationResult);
-    }
-  };
+        // Street definitions with start and end points
+        const streets = {
+            'Kirkcolm': {
+                start: {
+                    coords: [34.292210, -118.541805],
+                    number: 18740
+                },
+                end: {
+                    coords: [34.293460, -118.539643],
+                    number: 18643
+                },
+                offset: 0.00015, // Offset distance for house markers
+                oddOnNorth: true // Whether odd numbers are on the north side
+            },
+            'Eddleston': {
+                start: {
+                    coords: [34.291942, -118.539095], // West end (11700)
+                    number: 11700
+                },
+                end: {
+                    coords: [34.291236, -118.536032], // East end (12100)
+                    number: 12100
+                },
+                offset: 0.00012, // Slightly reduced offset
+                oddOnNorth: false
+            }
+        };
 
-  if (loading) {
-    return (
-      <Card className="w-full max-w-md mx-auto">
-        <CardContent className="p-6 flex justify-center items-center">
-          <Loader2 className="w-6 h-6 animate-spin" />
-        </CardContent>
-      </Card>
-    );
-  }
+        function initMap() {
+            map = L.map('map', {
+                center: [34.290000, -118.537000],
+                zoom: 16,
+                zoomControl: true
+            });
 
-  return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle className="text-xl font-bold">Eddleston Street Address Validator</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={searchAddress}
-              onChange={(e) => setSearchAddress(e.target.value)}
-              placeholder="Enter address number..."
-              className="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              type="submit"
-              disabled={!searchAddress.trim()}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-            >
-              <MapPin className="w-5 h-5" />
-            </button>
-          </div>
-        </form>
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
 
-        {error && (
-          <div className="mt-4 p-3 bg-red-100 text-red-700 rounded">
-            {error}
-          </div>
-        )}
+            // Add boundary polygon
+            const polygon = L.polygon(boundaryCoords, {
+                color: '#0072B2',
+                weight: 3,
+                opacity: 0.8,
+                fillOpacity: 0.1
+            }).addTo(map);
 
-        {result && (
-          <div className={`mt-4 p-4 rounded ${result.valid ? 'bg-green-50' : 'bg-red-50'}`}>
-            {result.valid ? (
-              <>
-                <h3 className="font-semibold text-green-800">Address Found!</h3>
-                <p className="mt-2">
-                  Confidence: {result.confidence}
-                  {result.suggestedAddress && (
-                    <div className="mt-1 text-sm">
-                      Suggested: {result.suggestedAddress}
-                    </div>
-                  )}
-                </p>
-                <p className="mt-2">
-                  Coordinates:<br />
-                  Latitude: {result.position[0]}<br />
-                  Longitude: {result.position[1]}
-                </p>
-              </>
-            ) : (
-              <h3 className="font-semibold text-red-800">Address Not Found</h3>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
+            map.fitBounds(polygon.getBounds());
+        }
 
-export default EddlestonAddressValidator;
+        function calculatePosition(address) {
+            // Parse address
+            const match = address.match(/^(\d+)\s+([A-Za-z]+)/i);
+            if (!match) return null;
+
+            const [_, number, streetName] = match;
+            const street = streets[streetName];
+            if (!street) return null;
+
+            const houseNumber = parseInt(number);
+            const isOddNumber = houseNumber % 2 === 1;
+
+            // Calculate position along the street
+            const { start, end } = street;
+            const ratio = (houseNumber - start.number) / (end.number - start.number);
+            
+            // Interpolate position
+            const basePosition = [
+                start.coords[0] + (end.coords[0] - start.coords[0]) * ratio,
+                start.coords[1] + (end.coords[1] - start.coords[1]) * ratio
+            ];
+
+            // Add offset based on odd/even side of street
+            const shouldBeNorth = (isOddNumber === street.oddOnNorth);
+            const offset = shouldBeNorth ? street.offset : -street.offset;
+
+            return {
+                position: [basePosition[0] + offset, basePosition[1]],
+                streetName,
+                houseNumber
+            };
+        }
+
+        function addMarker(position, type, address) {
+            const config = statusConfigs[type];
+            
+            const icon = L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style="
+                    background-color: ${config.color};
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 50%;
+                    border: 3px solid white;
+                    box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+                    color: white;
+                    font-size: 16px;
+                    font-weight: bold;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    ">${config.icon}</div>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+            
+            const marker = L.marker(position, { icon }).addTo(map);
+            
+            const popupContent = `
+                <div class="popup-content">
+                    <b>${config.label}</b><br>
+                    ${address}
+                </div>
+            `;
+            
+            marker.bindPopup(popupContent).openPopup();
+            markers.push(marker);
+        }
+
+        function validateAddress(address) {
+            const result = calculatePosition(address);
+            if (!result) return { valid: false };
+            
+            return {
+                valid: true,
+                position: result.position,
+                formattedAddress: `${result.houseNumber} ${result.streetName}`
+            };
+        }
+
+        function requestHelp() {
+            currentRequestType = 'need-help';
+            showModal();
+        }
+
+        function offerHelp() {
+            currentRequestType = 'offer-help';
+            showModal();
+        }
+
+        function markSafe() {
+            currentRequestType = 'safe';
+            showModal();
+        }
+
+        function showModal() {
+            const modal = document.getElementById('addressModal');
+            const input = document.getElementById('addressInput');
+            modal.style.display = 'block';
+            input.value = '';
+            input.focus();
+        }
+
+        function closeModal() {
+            document.getElementById('addressModal').style.display = 'none';
+        }
+
+        function confirmAddress() {
+            const address = document.getElementById('addressInput').value;
+            if (!address) {
+                alert('Please enter your address');
+                return;
+            }
+
+            const validation = validateAddress(address);
+            if (!validation.valid) {
+                alert('Please enter a valid address number and street name (e.g., 18740 Kirkcolm)');
+                return;
+            }
+
+            addMarker(validation.position, currentRequestType, validation.formattedAddress);
+            closeModal();
+        }
+
+        // Event Listeners
+        window.onload = initMap;
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('addressModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        };
+
+        document.getElementById('addressInput').addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                confirmAddress();
+            }
+        });
+    </script>
+</body>
+</html>
