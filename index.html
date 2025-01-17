@@ -141,7 +141,7 @@
                     type="text" 
                     id="addressInput" 
                     class="address-input" 
-                    placeholder="Enter house number and street (e.g., 11719 Eddleston)"
+                    placeholder="Enter house number and street (e.g., 12047 Eddleston)"
                 >
                 <p class="help-text">
                     Valid streets: Kirkcolm Lane, Eddleston Drive
@@ -203,7 +203,7 @@
             }
         };
 
-        // Street definitions with known coordinates
+        // Street definitions (only used for non-Eddleston addresses)
         const streets = {
             'Kirkcolm': {
                 start: {
@@ -216,18 +216,6 @@
                 },
                 offset: 0.00015,
                 oddOnNorth: true
-            },
-            'Eddleston': {
-                start: {
-                    coords: [34.28681819899954, -118.53193311625134],
-                    number: 11719
-                },
-                end: {
-                    coords: [34.29286797782405, -118.54013531141605],
-                    number: 12121
-                },
-                offset: 0.00012,
-                oddOnNorth: false
             }
         };
 
@@ -243,10 +231,16 @@
                     complete: function(results) {
                         results.data.forEach(row => {
                             if (row.Number && row.Coordinate) {
+                                // Store with just the number as key for Eddleston
                                 const coords = row.Coordinate.split(',').map(coord => parseFloat(coord.trim()));
-                                addressData[`${row.Number} Eddleston`] = coords;
+                                addressData[row.Number] = coords;
                             }
                         });
+                        console.log('Address data loaded:', 
+                            Object.keys(addressData).length + ' addresses');
+                    },
+                    error: function(error) {
+                        console.error('Error parsing CSV:', error);
                     }
                 });
             } catch (error) {
@@ -266,7 +260,6 @@
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
 
-            // Add boundary polygon
             const polygon = L.polygon(boundaryCoords, {
                 color: '#0072B2',
                 weight: 3,
@@ -282,25 +275,29 @@
             if (!match) return null;
 
             const [_, number, streetName] = match;
-            
-            // First check if we have exact coordinates from CSV
-            const exactMatch = addressData[`${number} ${streetName}`];
-            if (exactMatch) {
-                return {
-                    position: exactMatch,
-                    streetName,
-                    houseNumber: parseInt(number)
-                };
+            const houseNumber = parseInt(number);
+
+            // For Eddleston, use exact coordinates from CSV
+            if (streetName.toLowerCase().startsWith('eddleston')) {
+                if (addressData[houseNumber]) {
+                    return {
+                        position: addressData[houseNumber],
+                        streetName: 'Eddleston',
+                        houseNumber: houseNumber
+                    };
+                } else {
+                    console.log('Address not found in CSV:', houseNumber);
+                    return null;
+                }
             }
 
-            // Fall back to interpolation if no exact match
+            // For other streets, use the original calculation method
             const street = streets[streetName];
             if (!street) return null;
 
-            const houseNumber = parseInt(number);
             const isOddNumber = houseNumber % 2 === 1;
 
-            // Validate house number is within range
+            // Validate house number range
             if (street.start.number < street.end.number) {
                 if (houseNumber < street.start.number || houseNumber > street.end.number) return null;
             } else {
@@ -322,7 +319,6 @@
             const shouldBeNorth = (isOddNumber === street.oddOnNorth);
             const offset = shouldBeNorth ? street.offset : -street.offset;
 
-            // Calculate perpendicular offset
             const dx = street.end.coords[0] - street.start.coords[0];
             const dy = street.end.coords[1] - street.start.coords[1];
             const length = Math.sqrt(dx * dx + dy * dy);
@@ -371,6 +367,9 @@
             
             marker.bindPopup(popupContent).openPopup();
             markers.push(marker);
+
+            // Log the marker position for debugging
+            console.log(`Added marker at ${position} for ${address}`);
         }
 
         function validateAddress(address) {
@@ -420,7 +419,7 @@
 
             const validation = validateAddress(address);
             if (!validation.valid) {
-                alert('Please enter a valid address number and street name (e.g., 11719 Eddleston)');
+                alert('Please enter a valid address number and street name (e.g., 12047 Eddleston)');
                 return;
             }
 
@@ -430,8 +429,8 @@
 
         // Event Listeners
         window.onload = async function() {
-            await loadAddressData();
-            initMap();
+            await loadAddressData();  // Load CSV data first
+            initMap();  // Then initialize the map
         };
 
         window.onclick = function(event) {
