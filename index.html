@@ -203,7 +203,7 @@
             }
         };
 
-        // Street definitions for non-Eddleston addresses
+        // Street definitions for Kirkcolm
         const streets = {
             'Kirkcolm': {
                 start: {
@@ -219,6 +219,38 @@
             }
         };
 
+        async function initializeMap() {
+            try {
+                // First load address data
+                await loadAddressData();
+                
+                // Then initialize the map
+                map = L.map('map', {
+                    center: [34.290000, -118.537000],
+                    zoom: 16,
+                    zoomControl: true
+                });
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(map);
+
+                const polygon = L.polygon(boundaryCoords, {
+                    color: '#0072B2',
+                    weight: 3,
+                    opacity: 0.8,
+                    fillOpacity: 0.1
+                }).addTo(map);
+
+                map.fitBounds(polygon.getBounds());
+                
+                console.log('Map initialized successfully');
+            } catch (error) {
+                console.error('Error initializing map:', error);
+            }
+        }
+
         async function loadAddressData() {
             try {
                 const response = await window.fs.readFile('Eddleston Street addresses and Coordinates  Sheet1.csv', { encoding: 'utf8' });
@@ -230,15 +262,11 @@
                     complete: function(results) {
                         results.data.forEach(row => {
                             if (row.Number && row.Coordinate) {
-                                // Store the address data with the house number as key
                                 const coords = row.Coordinate.split(',').map(coord => parseFloat(coord.trim()));
-                                addressData[row.Number.toString()] = {
-                                    coordinates: coords,
-                                    streetName: row['Street name'].trim()
-                                };
+                                addressData[row.Number] = coords;
                             }
                         });
-                        console.log('Address data loaded:', Object.keys(addressData).length, 'addresses');
+                        console.log('Loaded address data:', Object.keys(addressData).length, 'addresses');
                     }
                 });
             } catch (error) {
@@ -246,30 +274,7 @@
             }
         }
 
-        function initMap() {
-            map = L.map('map', {
-                center: [34.290000, -118.537000],
-                zoom: 16,
-                zoomControl: true
-            });
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(map);
-
-            const polygon = L.polygon(boundaryCoords, {
-                color: '#0072B2',
-                weight: 3,
-                opacity: 0.8,
-                fillOpacity: 0.1
-            }).addTo(map);
-
-            map.fitBounds(polygon.getBounds());
-        }
-
         function calculatePosition(address) {
-            // Clean and parse the address
             const cleanAddress = address.trim().toUpperCase();
             const match = cleanAddress.match(/^(\d+)\s+([A-Za-z]+)/i);
             
@@ -279,35 +284,35 @@
             }
 
             const [_, number, streetPart] = match;
-            const houseNumber = number.toString();
+            const houseNumber = parseInt(number);
 
-            // Check if this is a known address number
+            // Check if this is a known Eddleston address
             if (addressData[houseNumber]) {
                 console.log('Found exact address match:', houseNumber);
                 return {
-                    position: addressData[houseNumber].coordinates,
+                    position: addressData[houseNumber],
                     streetName: 'Eddleston',
-                    houseNumber: parseInt(houseNumber)
+                    houseNumber: houseNumber
                 };
             }
 
-            // If not found in Eddleston data, try Kirkcolm calculation
+            // Handle Kirkcolm addresses
             if (streetPart.toUpperCase().includes('KIRK')) {
                 const street = streets['Kirkcolm'];
-                const houseNum = parseInt(number);
-                const isOddNumber = houseNum % 2 === 1;
+                const isOddNumber = houseNumber % 2 === 1;
 
+                // Validate house number range
                 if (street.start.number < street.end.number) {
-                    if (houseNum < street.start.number || houseNum > street.end.number) return null;
+                    if (houseNumber < street.start.number || houseNumber > street.end.number) return null;
                 } else {
-                    if (houseNum > street.start.number || houseNum < street.end.number) return null;
+                    if (houseNumber > street.start.number || houseNumber < street.end.number) return null;
                 }
 
                 let ratio;
                 if (street.end.number > street.start.number) {
-                    ratio = (houseNum - street.start.number) / (street.end.number - street.start.number);
+                    ratio = (houseNumber - street.start.number) / (street.end.number - street.start.number);
                 } else {
-                    ratio = (street.start.number - houseNum) / (street.start.number - street.end.number);
+                    ratio = (street.start.number - houseNumber) / (street.start.number - street.end.number);
                 }
 
                 const basePosition = [
@@ -328,7 +333,7 @@
                 return {
                     position: [basePosition[0] + offsetX, basePosition[1] + offsetY],
                     streetName: 'Kirkcolm',
-                    houseNumber: houseNum
+                    houseNumber: houseNumber
                 };
             }
 
@@ -437,8 +442,8 @@
 
         // Event Listeners
         window.onload = async function() {
-            await loadAddressData();  // Load CSV data first
-            initMap();  // Then initialize the map
+            console.log('Window loaded, initializing map...');
+            await initializeMap();
         };
 
         window.onclick = function(event) {
@@ -448,4 +453,12 @@
             }
         };
 
-        document.getElementByI
+        document.getElementById('addressInput').addEventListener('keyup', function(event) {document.getElementById('addressInput').addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                confirmAddress();
+            }
+        });
+    </script>
+</body>
+</html>
+            
