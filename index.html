@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     
     <style>
-        /* [Previous styles remain the same] */
         body { 
             margin: 0; 
             padding: 20px; 
@@ -116,6 +115,11 @@
             background-color: #0072B2;
             color: white;
         }
+
+        .custom-div-icon {
+            background: none;
+            border: none;
+        }
     </style>
 </head>
 <body>
@@ -137,7 +141,7 @@
                     type="text" 
                     id="addressInput" 
                     class="address-input" 
-                    placeholder="Enter house number and street (e.g., 18740 Kirkcolm)"
+                    placeholder="Enter house number and street (e.g., 11719 Eddleston)"
                 >
                 <p class="help-text">
                     Valid streets: Kirkcolm Lane, Eddleston Drive
@@ -151,11 +155,13 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     
     <script>
         let map = null;
         let currentRequestType = null;
         let markers = [];
+        let addressData = {};
 
         // Define boundary coordinates
         const boundaryCoords = [
@@ -197,7 +203,7 @@
             }
         };
 
-        // Street definitions with start and end points
+        // Street definitions with known coordinates
         const streets = {
             'Kirkcolm': {
                 start: {
@@ -208,22 +214,45 @@
                     coords: [34.293460, -118.539643],
                     number: 18643
                 },
-                offset: 0.00015, // Offset distance for house markers
-                oddOnNorth: true // Whether odd numbers are on the north side
+                offset: 0.00015,
+                oddOnNorth: true
             },
             'Eddleston': {
                 start: {
-                    coords: [34.291942, -118.539095], // West end (11700)
-                    number: 11700
+                    coords: [34.28681819899954, -118.53193311625134],
+                    number: 11719
                 },
                 end: {
-                    coords: [34.291236, -118.536032], // East end (12100)
-                    number: 12100
+                    coords: [34.29286797782405, -118.54013531141605],
+                    number: 12121
                 },
-                offset: 0.00012, // Slightly reduced offset
+                offset: 0.00012,
                 oddOnNorth: false
             }
         };
+
+        // Load and parse CSV data
+        async function loadAddressData() {
+            try {
+                const response = await fetch('Eddleston Street addresses and Coordinates  Sheet1.csv');
+                const text = await response.text();
+                
+                Papa.parse(text, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        results.data.forEach(row => {
+                            if (row.Number && row.Coordinate) {
+                                const coords = row.Coordinate.split(',').map(coord => parseFloat(coord.trim()));
+                                addressData[`${row.Number} Eddleston`] = coords;
+                            }
+                        });
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading address data:', error);
+            }
+        }
 
         function initMap() {
             map = L.map('map', {
@@ -249,33 +278,60 @@
         }
 
         function calculatePosition(address) {
-            // Parse address
             const match = address.match(/^(\d+)\s+([A-Za-z]+)/i);
             if (!match) return null;
 
             const [_, number, streetName] = match;
+            
+            // First check if we have exact coordinates from CSV
+            const exactMatch = addressData[`${number} ${streetName}`];
+            if (exactMatch) {
+                return {
+                    position: exactMatch,
+                    streetName,
+                    houseNumber: parseInt(number)
+                };
+            }
+
+            // Fall back to interpolation if no exact match
             const street = streets[streetName];
             if (!street) return null;
 
             const houseNumber = parseInt(number);
             const isOddNumber = houseNumber % 2 === 1;
 
-            // Calculate position along the street
-            const { start, end } = street;
-            const ratio = (houseNumber - start.number) / (end.number - start.number);
-            
-            // Interpolate position
+            // Validate house number is within range
+            if (street.start.number < street.end.number) {
+                if (houseNumber < street.start.number || houseNumber > street.end.number) return null;
+            } else {
+                if (houseNumber > street.start.number || houseNumber < street.end.number) return null;
+            }
+
+            let ratio;
+            if (street.end.number > street.start.number) {
+                ratio = (houseNumber - street.start.number) / (street.end.number - street.start.number);
+            } else {
+                ratio = (street.start.number - houseNumber) / (street.start.number - street.end.number);
+            }
+
             const basePosition = [
-                start.coords[0] + (end.coords[0] - start.coords[0]) * ratio,
-                start.coords[1] + (end.coords[1] - start.coords[1]) * ratio
+                street.start.coords[0] + (street.end.coords[0] - street.start.coords[0]) * ratio,
+                street.start.coords[1] + (street.end.coords[1] - street.start.coords[1]) * ratio
             ];
 
-            // Add offset based on odd/even side of street
             const shouldBeNorth = (isOddNumber === street.oddOnNorth);
             const offset = shouldBeNorth ? street.offset : -street.offset;
 
+            // Calculate perpendicular offset
+            const dx = street.end.coords[0] - street.start.coords[0];
+            const dy = street.end.coords[1] - street.start.coords[1];
+            const length = Math.sqrt(dx * dx + dy * dy);
+            
+            const offsetX = (-dy / length) * offset;
+            const offsetY = (dx / length) * offset;
+
             return {
-                position: [basePosition[0] + offset, basePosition[1]],
+                position: [basePosition[0] + offsetX, basePosition[1] + offsetY],
                 streetName,
                 houseNumber
             };
@@ -364,7 +420,7 @@
 
             const validation = validateAddress(address);
             if (!validation.valid) {
-                alert('Please enter a valid address number and street name (e.g., 18740 Kirkcolm)');
+                alert('Please enter a valid address number and street name (e.g., 11719 Eddleston)');
                 return;
             }
 
@@ -373,7 +429,10 @@
         }
 
         // Event Listeners
-        window.onload = initMap;
+        window.onload = async function() {
+            await loadAddressData();
+            initMap();
+        };
 
         window.onclick = function(event) {
             const modal = document.getElementById('addressModal');
