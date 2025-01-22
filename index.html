@@ -1,464 +1,267 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neighborhood Emergency Response Map</title>
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
-    
-    <style>
-        body { 
-            margin: 0; 
-            padding: 20px; 
-            font-family: system-ui, sans-serif; 
-        }
+import React, { useEffect, useRef, useState } from 'react';
+import { AlertCircle, HelpingHand, Shield } from 'lucide-react';
+
+// Colorblind-friendly palette (Wong)
+const STATUS_CONFIG = {
+  needHelp: {
+    color: '#D55E00',  // Vibrant orange
+    icon: '!',
+    title: 'Needs Help'
+  },
+  offerHelp: {
+    color: '#009E73',  // Vibrant green
+    icon: 'H',
+    title: 'Offering Help'
+  },
+  safe: {
+    color: '#0072B2',  // Strong blue
+    icon: 'S',
+    title: 'Safe Location'
+  }
+};
+
+function App() {
+  const mapRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const [map, setMap] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [selectedAction, setSelectedAction] = useState(null);
+  const scriptLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (scriptLoadedRef.current) return;
+    scriptLoadedRef.current = true;
+
+    const initMap = () => {
+      if (!mapRef.current) return;
+
+      const newMap = new window.google.maps.Map(mapRef.current, {
+        center: { lat: 34.28998351243129, lng: -118.5383687459385 },
+        zoom: 16,
+        mapTypeControl: false,
+        fullscreenControl: true,
+        streetViewControl: false,
+        zoomControl: true,
+      });
+
+      setMap(newMap);
+
+      if (searchInputRef.current) {
+        const searchBox = new window.google.maps.places.SearchBox(searchInputRef.current);
         
-        #map { 
-            height: 600px; 
-            width: 100%; 
-            border-radius: 8px; 
-            border: 2px solid #ccc;
-            margin-top: 20px;
-        }
+        searchBox.addListener('places_changed', () => {
+          const places = searchBox.getPlaces();
 
-        .button-container {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
+          if (!places || places.length === 0) {
+            setError('No location found. Please try again.');
+            return;
+          }
 
-        @media (min-width: 768px) {
-            .button-container {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
+          const place = places[0];
+          if (!place.geometry || !place.geometry.location) {
+            setError('Location details not found. Please try a different address.');
+            return;
+          }
 
-        .status-button {
-            width: 100%;
-            padding: 15px;
-            font-size: 18px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            color: white;
-            font-weight: bold;
-            transition: opacity 0.2s;
-        }
+          setError('');
+          const location = {
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
+            address: place.formatted_address
+          };
+          setSelectedLocation(location);
 
-        .status-button:hover {
-            opacity: 0.9;
-        }
+          newMap.panTo(place.geometry.location);
+          newMap.setZoom(16);
 
-        .need-help { background-color: #D55E00; }
-        .offer-help { background-color: #009E73; }
-        .safe { background-color: #0072B2; }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            z-index: 1000;
-        }
-
-        .modal-content {
-            position: relative;
-            background-color: white;
-            margin: 15% auto;
-            padding: 20px;
-            width: 90%;
-            max-width: 500px;
-            border-radius: 8px;
-        }
-
-        .address-input {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            border: 2px solid #ccc;
-            border-radius: 4px;
-            font-size: 16px;
-        }
-
-        .help-text {
-            color: #666;
-            font-size: 14px;
-            margin-top: 5px;
-        }
-
-        .modal-buttons {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .modal-button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        .cancel-button {
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-        }
-
-        .confirm-button {
-            background-color: #0072B2;
-            color: white;
-        }
-
-        .custom-div-icon {
-            background: none;
-            border: none;
-        }
-    </style>
-</head>
-<body>
-    <div role="main">
-        <h1>Neighborhood Emergency Response Map</h1>
-
-        <div class="button-container">
-            <button class="status-button need-help" onclick="requestHelp()">I Need Help</button>
-            <button class="status-button offer-help" onclick="offerHelp()">I Can Help</button>
-            <button class="status-button safe" onclick="markSafe()">I Am Safe</button>
-        </div>
-        
-        <div id="map"></div>
-
-        <div id="addressModal" class="modal">
-            <div class="modal-content">
-                <h2>Verify Your Address</h2>
-                <input 
-                    type="text" 
-                    id="addressInput" 
-                    class="address-input" 
-                    placeholder="Enter house number and street (e.g., 12047 Eddleston)"
-                >
-                <p class="help-text">
-                    Valid streets: Kirkcolm Lane, Eddleston Drive
-                </p>
-                <div class="modal-buttons">
-                    <button class="modal-button cancel-button" onclick="closeModal()">Cancel</button>
-                    <button class="modal-button confirm-button" onclick="confirmAddress()">Confirm</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
-    
-    <script>
-        let map = null;
-        let currentRequestType = null;
-        let markers = [];
-        let addressData = {};
-
-        // Define boundary coordinates
-        const boundaryCoords = [
-            [34.292529, -118.542277],
-            [34.293814, -118.539230],
-            [34.291731, -118.536118],
-            [34.291350, -118.536472],
-            [34.290677, -118.535936],
-            [34.290730, -118.535550],
-            [34.289950, -118.535700],
-            [34.289923, -118.535496],
-            [34.290562, -118.535174],
-            [34.290030, -118.534187],
-            [34.289835, -118.534273],
-            [34.288435, -118.532782],
-            [34.288302, -118.532481],
-            [34.286857, -118.531569],
-            [34.285936, -118.534648],
-            [34.287345, -118.538522],
-            [34.289250, -118.540539],
-            [34.292529, -118.542277]
-        ];
-
-        const statusConfigs = {
-            'need-help': {
-                color: '#D55E00',
-                icon: '!',
-                label: 'Needs Help'
-            },
-            'offer-help': {
-                color: '#009E73',
-                icon: 'H',
-                label: 'Can Help'
-            },
-            'safe': {
-                color: '#0072B2',
-                icon: '✓',
-                label: 'Safe'
-            }
-        };
-
-        // Street definitions for Kirkcolm
-        const streets = {
-            'Kirkcolm': {
-                start: {
-                    coords: [34.292210, -118.541805],
-                    number: 18740
-                },
-                end: {
-                    coords: [34.293460, -118.539643],
-                    number: 18643
-                },
-                offset: 0.00015,
-                oddOnNorth: true
-            }
-        };
-
-        async function initializeMap() {
-            try {
-                // First load address data
-                await loadAddressData();
-                
-                // Then initialize the map
-                map = L.map('map', {
-                    center: [34.290000, -118.537000],
-                    zoom: 16,
-                    zoomControl: true
-                });
-
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '© OpenStreetMap contributors'
-                }).addTo(map);
-
-                const polygon = L.polygon(boundaryCoords, {
-                    color: '#0072B2',
-                    weight: 3,
-                    opacity: 0.8,
-                    fillOpacity: 0.1
-                }).addTo(map);
-
-                map.fitBounds(polygon.getBounds());
-                
-                console.log('Map initialized successfully');
-            } catch (error) {
-                console.error('Error initializing map:', error);
-            }
-        }
-
-        async function loadAddressData() {
-            try {
-                const response = await window.fs.readFile('Eddleston Street addresses and Coordinates  Sheet1.csv', { encoding: 'utf8' });
-                
-                Papa.parse(response, {
-                    header: true,
-                    skipEmptyLines: true,
-                    dynamicTyping: true,
-                    complete: function(results) {
-                        results.data.forEach(row => {
-                            if (row.Number && row.Coordinate) {
-                                const coords = row.Coordinate.split(',').map(coord => parseFloat(coord.trim()));
-                                addressData[row.Number] = coords;
-                            }
-                        });
-                        console.log('Loaded address data:', Object.keys(addressData).length, 'addresses');
-                    }
-                });
-            } catch (error) {
-                console.error('Error loading address data:', error);
-            }
-        }
-
-        function calculatePosition(address) {
-            const cleanAddress = address.trim().toUpperCase();
-            const match = cleanAddress.match(/^(\d+)\s+([A-Za-z]+)/i);
-            
-            if (!match) {
-                console.log('Address format not recognized:', address);
-                return null;
-            }
-
-            const [_, number, streetPart] = match;
-            const houseNumber = parseInt(number);
-
-            // Check if this is a known Eddleston address
-            if (addressData[houseNumber]) {
-                console.log('Found exact address match:', houseNumber);
-                return {
-                    position: addressData[houseNumber],
-                    streetName: 'Eddleston',
-                    houseNumber: houseNumber
-                };
-            }
-
-            // Handle Kirkcolm addresses
-            if (streetPart.toUpperCase().includes('KIRK')) {
-                const street = streets['Kirkcolm'];
-                const isOddNumber = houseNumber % 2 === 1;
-
-                // Validate house number range
-                if (street.start.number < street.end.number) {
-                    if (houseNumber < street.start.number || houseNumber > street.end.number) return null;
-                } else {
-                    if (houseNumber > street.start.number || houseNumber < street.end.number) return null;
-                }
-
-                let ratio;
-                if (street.end.number > street.start.number) {
-                    ratio = (houseNumber - street.start.number) / (street.end.number - street.start.number);
-                } else {
-                    ratio = (street.start.number - houseNumber) / (street.start.number - street.end.number);
-                }
-
-                const basePosition = [
-                    street.start.coords[0] + (street.end.coords[0] - street.start.coords[0]) * ratio,
-                    street.start.coords[1] + (street.end.coords[1] - street.start.coords[1]) * ratio
-                ];
-
-                const shouldBeNorth = (isOddNumber === street.oddOnNorth);
-                const offset = shouldBeNorth ? street.offset : -street.offset;
-
-                const dx = street.end.coords[0] - street.start.coords[0];
-                const dy = street.end.coords[1] - street.start.coords[1];
-                const length = Math.sqrt(dx * dx + dy * dy);
-                
-                const offsetX = (-dy / length) * offset;
-                const offsetY = (dx / length) * offset;
-
-                return {
-                    position: [basePosition[0] + offsetX, basePosition[1] + offsetY],
-                    streetName: 'Kirkcolm',
-                    houseNumber: houseNumber
-                };
-            }
-
-            console.log('Address not found:', houseNumber);
-            return null;
-        }
-
-        function addMarker(position, type, address) {
-            const config = statusConfigs[type];
-            
-            const icon = L.divIcon({
-                className: 'custom-div-icon',
-                html: `<div style="
-                    background-color: ${config.color};
-                    width: 30px;
-                    height: 30px;
-                    border-radius: 50%;
-                    border: 3px solid white;
-                    box-shadow: 0 3px 14px rgba(0,0,0,0.4);
-                    color: white;
-                    font-size: 16px;
-                    font-weight: bold;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    ">${config.icon}</div>`,
-                iconSize: [30, 30],
-                iconAnchor: [15, 15]
-            });
-            
-            const marker = L.marker(position, { icon }).addTo(map);
-            
-            const popupContent = `
-                <div class="popup-content">
-                    <b>${config.label}</b><br>
-                    ${address}
-                </div>
-            `;
-            
-            marker.bindPopup(popupContent).openPopup();
-            markers.push(marker);
-            console.log(`Added marker at ${position} for ${address}`);
-        }
-
-        function validateAddress(address) {
-            console.log('Validating address:', address);
-            const result = calculatePosition(address);
-            
-            if (!result) {
-                console.log('Address validation failed');
-                return { valid: false };
-            }
-            
-            return {
-                valid: true,
-                position: result.position,
-                formattedAddress: `${result.houseNumber} ${result.streetName}`
-            };
-        }
-
-        function requestHelp() {
-            currentRequestType = 'need-help';
-            showModal();
-        }
-
-        function offerHelp() {
-            currentRequestType = 'offer-help';
-            showModal();
-        }
-
-        function markSafe() {
-            currentRequestType = 'safe';
-            showModal();
-        }
-
-        function showModal() {
-            const modal = document.getElementById('addressModal');
-            const input = document.getElementById('addressInput');
-            modal.style.display = 'block';
-            input.value = '';
-            input.focus();
-        }
-
-        function closeModal() {
-            document.getElementById('addressModal').style.display = 'none';
-        }
-
-        function confirmAddress() {
-            const address = document.getElementById('addressInput').value;
-            if (!address) {
-                alert('Please enter your address');
-                return;
-            }
-
-            const validation = validateAddress(address);
-            if (!validation.valid) {
-                console.log('Invalid address entered:', address);
-                alert('Please enter a valid address number and street name (e.g., 12047 Eddleston)');
-                return;
-            }
-
-            console.log('Adding marker for:', validation.formattedAddress, 'at position:', validation.position);
-            addMarker(validation.position, currentRequestType, validation.formattedAddress);
-            closeModal();
-        }
-
-        // Event Listeners
-        window.onload = async function() {
-            console.log('Window loaded, initializing map...');
-            await initializeMap();
-        };
-
-        window.onclick = function(event) {
-            const modal = document.getElementById('addressModal');
-            if (event.target == modal) {
-                closeModal();
-            }
-        };
-
-        document.getElementById('addressInput').addEventListener('keyup', function(event) {document.getElementById('addressInput').addEventListener('keyup', function(event) {
-            if (event.key === 'Enter') {
-                confirmAddress();
-            }
+          if (selectedAction) {
+            createMarker(location, selectedAction, newMap);
+          }
         });
-    </script>
-</body>
-</html>
-            
+
+        newMap.addListener('bounds_changed', () => {
+          searchBox.setBounds(newMap.getBounds());
+        });
+      }
+
+      setIsLoading(false);
+    };
+
+    // Load Google Maps script
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&libraries=places,marker`;
+    script.async = true;
+    script.onload = initMap;
+    document.head.appendChild(script);
+
+    return () => {
+      scriptLoadedRef.current = false;
+    };
+  }, []);
+
+  const createMarker = (location, type, mapInstance) => {
+    try {
+      const config = STATUS_CONFIG[type];
+      
+      // Create marker element
+      const markerElement = document.createElement('div');
+      markerElement.innerHTML = `
+        <div style="
+          width: 34px;
+          height: 34px;
+          background-color: ${config.color};
+          border: 3px solid white;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          font-weight: bold;
+          color: white;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        ">
+          ${config.icon}
+        </div>
+      `;
+
+      // Create the advanced marker
+      const marker = new window.google.maps.marker.AdvancedMarkerElement({
+        map: mapInstance,
+        position: location,
+        content: markerElement,
+        title: config.title
+      });
+
+      const infoWindow = new google.maps.InfoWindow({
+        content: `
+          <div style="padding: 12px; font-size: 16px;">
+            <h3 style="margin: 0 0 12px 0; font-size: 20px; font-weight: bold;">${config.title}</h3>
+            ${location.address ? 
+              `<p style="margin: 0 0 12px 0;">${location.address}</p>` : ''}
+            <p style="margin: 0;">${new Date().toLocaleString()}</p>
+          </div>
+        `
+      });
+
+      marker.addListener('click', () => {
+        infoWindow.open(mapInstance, marker);
+      });
+
+      if (searchInputRef.current) {
+        searchInputRef.current.value = '';
+      }
+      setSelectedLocation(null);
+      setSelectedAction(null);
+      setError('');
+    } catch (error) {
+      console.error('Error creating marker:', error);
+      setError('Error placing marker. Please try again.');
+    }
+  };
+
+  const handleButtonClick = (type) => {
+    setSelectedAction(type);
+    if (!map) {
+      setError('Map is not ready yet. Please wait a moment.');
+      return;
+    }
+
+    if (selectedLocation) {
+      createMarker(selectedLocation, type, map);
+    } else {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+      }
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      <header className="mb-8">
+        <h1 className="text-4xl font-bold mb-4" role="heading" aria-level="1">
+          Emergency Response Map
+        </h1>
+        {selectedAction ? (
+          <p className="text-xl text-gray-700">
+            Please enter your address to mark your location
+          </p>
+        ) : (
+          <p className="text-xl text-gray-700">
+            Select your status, then enter your address
+          </p>
+        )}
+      </header>
+
+      {error && (
+        <div className="mb-4 p-4 bg-red-100 border-l-4 border-red-500 text-red-700" role="alert">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <button 
+          onClick={() => handleButtonClick('needHelp')}
+          disabled={isLoading}
+          aria-label="Request help at your location"
+          style={{ backgroundColor: STATUS_CONFIG.needHelp.color }}
+          className={`flex items-center justify-center gap-3 p-6 hover:opacity-90 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed focus:ring-4 focus:ring-orange-300 ${
+            selectedAction === 'needHelp' ? 'ring-4 ring-orange-300' : ''
+          }`}>
+          <AlertCircle size={32} aria-hidden="true" />
+          <span className="text-2xl font-semibold">Need Help</span>
+        </button>
+
+        <button 
+          onClick={() => handleButtonClick('offerHelp')}
+          disabled={isLoading}
+          aria-label="Offer help at your location"
+          style={{ backgroundColor: STATUS_CONFIG.offerHelp.color }}
+          className={`flex items-center justify-center gap-3 p-6 hover:opacity-90 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed focus:ring-4 focus:ring-green-300 ${
+            selectedAction === 'offerHelp' ? 'ring-4 ring-green-300' : ''
+          }`}>
+          <HelpingHand size={32} aria-hidden="true" />
+          <span className="text-2xl font-semibold">Offer Help</span>
+        </button>
+
+        <button 
+          onClick={() => handleButtonClick('safe')}
+          disabled={isLoading}
+          aria-label="Mark yourself as safe at your location"
+          style={{ backgroundColor: STATUS_CONFIG.safe.color }}
+          className={`flex items-center justify-center gap-3 p-6 hover:opacity-90 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed focus:ring-4 focus:ring-blue-300 ${
+            selectedAction === 'safe' ? 'ring-4 ring-blue-300' : ''
+          }`}>
+          <Shield size={32} aria-hidden="true" />
+          <span className="text-2xl font-semibold">I'm Safe</span>
+        </button>
+      </div>
+
+      <div className="mb-6">
+        <label htmlFor="address-search" className="block text-lg mb-2">
+          Your Location
+        </label>
+        <input
+          id="address-search"
+          ref={searchInputRef}
+          type="text"
+          placeholder="Enter your address"
+          aria-label="Search for your address"
+          className="w-full p-4 text-xl rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      <div className="bg-gray-100 p-4 rounded-lg">
+        <div 
+          ref={mapRef}
+          className="h-96 rounded-lg"
+          role="application"
+          aria-label="Map showing emergency status markers"
+        />
+      </div>
+    </div>
+  );
+}
+
+export default App;
